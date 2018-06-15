@@ -3,7 +3,7 @@
 
 from argparse import ArgumentParser
 from pysam import VariantFile
-from lib.stats.statistical import calc_ExcessHet, calc_pHWE
+from utils.stats.statistical import calc_ExcessHet, calc_pHWE
 #import configparser
 import csv
 from collections import namedtuple
