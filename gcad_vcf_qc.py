@@ -32,9 +32,10 @@ def extractSubSets(fam):
     samples = dict()
     for sm in map(SampleFamDetail._make, csv.reader(open(fam, 'r'),delimiter='\t')):
         if sm.Subset in samples:
-            samples[sm.Subset].append(sm.SampID)
+            samples[sm.Subset].add(sm.SampID)
         else:
-            samples[sm.Subset]=[sm.SampID]
+            samples[sm.Subset]=set()
+            samples[sm.Subset].add(sm.SampID)
     return samples
 
 def applyGenotypeQC(samples):
@@ -375,8 +376,16 @@ def main():
     # Save groups of samples as an intersecting set
     for k,v in samplesDict.items():
         #extraction_set.append( list(set(vcf_in.header.samples) & set(v) ))
-        samplesDict[k] = list(set(vcf_in.header.samples) & set(v) )
+        #samplesDict[k] = list(set(vcf_in.header.samples) & set(v) )
+
+        #method 3
         #samplesDict[k] = {'list': list(set(vcf_in.header.samples) & set(v) ),'dict':dict() }
+
+        #method 4
+        #samplesDict[k] = set(vcf_in.header.samples) & set(v)
+
+        #method 5
+        samplesDict[k] = {'set': set(vcf_in.header.samples) & v,'dict':dict() }
 
     ct=0
     start = time.time()
@@ -392,29 +401,53 @@ def main():
         #    print("VFLAGS_{}={};".format('', vf), end='')
 
         # Method 2
-        for subset, sm_list in samplesDict.items():
+        #for subset, sm_list in samplesDict.items():
 
-            gss = dict() # slice rec samples
-            for key,sm in rec.samples.items():
-                if key not in sm_list: continue
-                gss[key] = sm
+            #gss = dict() # slice rec samples
+            #for key,sm in rec.samples.items():
+                #if key not in sm_list: continue ## !SLOW!
+                #gss[key] = sm
 
-            vf = calcVFlags(gss, rec.filter)
-            print("VFLAGS_{}={};".format(subset,vf), end='')
-        print()
+            #vf = calcVFlags(gss, rec.filter)
+
+         #   print("VFLAGS_{}={};".format(subset,vf), end='')
+
+        #print()
 
         # Method 3
-
         #for key,sm in rec.samples.items():
             #for subset, sm_list in samplesDict.items():
-                #if key in sm_list['list']:
+                #if key in sm_list['list']: ## !SLOW!
                     #samplesDict[subset]['dict'][key] = sm
 
         #for subset, sm_list in samplesDict.items():
             #vf = calcVFlags(sm_list['dict'], rec.filter)
             #print("VFLAGS_{}={};".format(subset, vf), end='')
-        #print()
 
+        # Method 4 - set()
+        #for subset, sm_set in samplesDict.items():
+
+            #gss = dict() # slice rec samples
+            #for key,sm in rec.samples.items():
+
+                #if key in sm_set:
+                    #gss[key] = sm
+
+            #vf = calcVFlags(gss, rec.filter)
+            #print("VFLAGS_{}={};".format(subset, vf), end='')
+
+        # Method 5 - set, one pass
+        for key,sm in rec.samples.items():
+            for subset, sm_set in samplesDict.items():
+                if key in sm_set['set']:
+                    samplesDict[subset]['dict'][key] = sm
+
+        for subset, sm_list in samplesDict.items():
+            vf = calcVFlags(sm_list['dict'], rec.filter)
+            print("VFLAGS_{}={};".format(subset, vf), end='')
+
+
+        print()
         ct += 1
 
     end = time.time()
@@ -423,4 +456,4 @@ def main():
 
 if __name__ == "__main__":
     main()
-    #cProfile.run('main()')
+    #cProfile.run('main()', None, 'cumtime')
