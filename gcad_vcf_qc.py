@@ -6,30 +6,100 @@ from pysam import VariantFile
 
 #import configparser
 import csv
-from collections import namedtuple
+import os.path
+from collections import namedtuple, OrderedDict
 import time
 import cProfile
 
-from utils.VariantAnnotation.vflags import calcVFlags
+from utils.VariantAnnotation.vflags import calcVA
 import config as cfg
 
+import warnings
+warnings.simplefilter('always')
 
 def extractSubSets(fam):
     """
+    extractSubSets - Creates a OrderedDict() where Subset groupings are the key, 
+                     values are SampID within it
     @return Samples Dict per Subset
     """
     SampleFamDetail = namedtuple('SampleFamDetail',['SampID','FID','SubjID','FA','MO','SEX','AFF','AD','AGE','ADSPWGS','Subset','Subgroup','Race_Ethnicity','SeqCtr','ExcludeFromZHet'])
 
-    samples = dict()
-    for sm in map(SampleFamDetail._make, csv.reader(open(fam, 'r'),delimiter='\t')):
-        if sm.Subset in samples:
-            samples[sm.Subset].add(sm.SampID)
-        else:
-            samples[sm.Subset]=set()
-            samples[sm.Subset].add(sm.SampID)
-    return samples
+    samples = OrderedDict()
+    ct = 0
+    with open(fam, 'r') as fam_file:
+        for sm in map(SampleFamDetail._make, csv.reader(fam_file, delimiter='\t')):
+            if sm.Subset in samples:
+                samples[sm.Subset].add(sm.SampID)
+            else:
+                samples[sm.Subset] = set()
+                samples[sm.Subset].add(sm.SampID)
+
+            ct += 1
+    return samples, ct
+
+def write_subset_stats(subset, rec, vf, abhet, passing, failing, missing, gt_failed, depth_sum, clean_obs):
+    """
+    """
+    outfile = 'summary.snv.{}_{}.out'.format(rec.contig, subset)
+    newfile = not os.path.exists(outfile)
 
 
+    with open(outfile, 'a') as csvfile:
+        fieldnames = ['CHR','POS',
+                      'Pass00','Pass01','Pass11',
+                      'Fail00','Fail01','Fail11',
+                      'Missing','GT_Failed',
+                      'Clean00','Clean01','Clean11','Mono','CallRate','CallBad','GATKPass','MAF','AltAF',
+                      'MeanDepth','HiDepth','ABHet','Mend_Incon','Mend_pairs','propMI','MultiAllele','FilteredOut',
+                      'VFLAGS','rsID','RefAllele','AltAllele','QUAL','FILTER',
+                      ]
+        writer = csv.DictWriter(csvfile, fieldnames=fieldnames , delimiter='\t')
+
+        if newfile:
+            writer.writeheader()
+
+        # field calculations
+        sum_clean = sum(clean_obs)
+
+        # callrate
+        callrate = 1 - (missing + gt_failed) / (missing + gt_failed + sum_clean)
+
+        # MAF / AltAF; altAF = maf
+        maf = 0
+        temp = 2 * sum_clean
+
+        if temp > 0:
+            maf = (clean_obs[1] + 2 * clean_obs[2]) / temp
+            if maf > 0.5:
+                maf = 1 - maf
+
+        maf = "{0:.6f}".format(maf)
+
+        # MeanDepth
+        mean_depth = depth_sum / sum_clean if sum_clean > 0 else 0
+
+        writer.writerow({'CHR': rec.contig, 'POS': rec.pos,
+                         'Pass00':passing[0],'Pass01':passing[1],'Pass11':passing[2],
+                         'Fail00':failing[0],'Fail01':failing[1],'Fail11':failing[2],
+                         'Missing':missing, 'GT_Failed':gt_failed,
+                         'Clean00':clean_obs[0],'Clean01':clean_obs[1],'Clean11':clean_obs[2],
+                         'Mono':int(3 in vf),
+                         'CallRate':"{0:.6f}".format(callrate),
+                         'CallBad': int(callrate <= (1 - cfg.miss_rate)),
+                         'GATKPass':int(1 not in vf),
+                         'MAF':maf,'AltAF':maf,
+                         'MeanDepth':"{0:.6f}".format(mean_depth),'HiDepth':int(mean_depth > cfg.max_dp),
+                         'ABHet':abhet,
+                         'Mend_Incon':0,'Mend_pairs':0,'propMI':0,
+                         'MultiAllele':0,'FilteredOut':0,
+                         'VFLAGS':",".join(map(str,vf)),
+                         'rsID':rec.id,'RefAllele':rec.ref,'AltAllele':rec.alts[0],
+                         'QUAL':"{0:.2f}".format(rec.qual),'FILTER':",".join(rec.filter.keys()),
+                         })
+
+
+    return
 
 def main():
     argparser = ArgumentParser()
@@ -37,6 +107,9 @@ def main():
     grp_file_paths.add_argument('--vcf', type=str, help='input VCF file', required=True)
     grp_file_paths.add_argument('--fam', type=str, help='fam file (with headers)', required=True)
     #grp_file_paths.add_argument('--outfile', type=str, help='filepath for output file', required=True)
+
+    grp_overrides = argparser.add_argument_group(title='bcf overrides')
+    grp_overrides.add_argument('--region', type=str, help='restrict to VCF region e.g. chr3:100-200', default=None, required=False)
 
     grp_settings = argparser.add_argument_group(title='Theshold Settings')
     grp_settings.add_argument('--min_dp', type=int, help='minimum depth (DP)', default=10, required=False)
@@ -63,7 +136,10 @@ def main():
     cfg.hwe_pval = args.hwe_pval
     cfg.hwe_maf = args.hwe_maf
 
-    samplesDict = extractSubSets(args.fam) # returns dict
+    createSampleAnnotation(args.fam)
+    samplesDict, famCt = extractSubSets(args.fam) # returns dict
+    print("[FAM] Found {} subsets: {}; for {} sampIDs".format(len(samplesDict.keys()), list(samplesDict.keys()), famCt))
+    print("[FAM] {}".format([  "{}:{}".format(k, len(samplesDict[k]))  for k in samplesDict.keys()]))
     #{k:rec.samples[k] for k in samples['sub1']}
     #{k:rec.samples[k] for k in samples['sub1'] if k in rec.samples}
     #{key: d[key] for key in d.viewkeys() & l}
@@ -86,13 +162,28 @@ def main():
         #method 5
         samplesDict[k] = {'set': set(vcf_in.header.samples) & v,'dict':dict() }
 
+    print("[VCF] contains {} samples".format(len(vcf_in.header.samples)))
+
     ct=0
     start = time.time()
-    for rec in vcf_in.fetch():
-        #vcf_out.write(rec)
-        if ct>99:break
+    rChr = None
+    rStart = None
+    rEnd = None
 
-        print(str(rec.pos) + '\t', end='')
+    if args.region:
+        rChr = args.region.split(':')[0]
+        rStart = int(args.region.split(':')[1].split('-')[0]) - 1
+        rEnd = int(args.region.split(':')[1].split('-')[1])
+
+    for rec in vcf_in.fetch(rChr, rStart, rEnd):
+        #vcf_out.write(rec)
+        if ct>84:break
+
+        if len(rec.alts) > 1:
+            print("Warning found multiallelic variant")
+            contine
+
+        print(str(rec.contig) + '\t', str(rec.pos) + '\t', str(rec.ref) + '\t', str(rec.alts[0]) + '\t', end='')
 
         # Method 1
         #for sm_list in extraction_set:
@@ -142,15 +233,18 @@ def main():
                     samplesDict[subset]['dict'][key] = sm
 
         for subset, sm_list in samplesDict.items():
-            vf = calcVFlags(sm_list['dict'], rec.filter)
-            print("VFLAGS_{}={};".format(subset, vf), end='')
+            [vf, abhet, passing, failing, missing, gt_failed, depth_sum, clean_obs] = calcVA(sm_list['dict'], rec.filter)
 
+            if subset == 'ADSPccWGS':
+                print("VFLAGS_{}={};".format(subset, vf), end='')
+                print("ABHet_{}={};".format(subset, abhet), end='')
+            write_subset_stats(subset, rec, vf, abhet, passing, failing, missing, gt_failed, depth_sum, clean_obs )
 
         print()
         ct += 1
 
     end = time.time()
-    print(end - start)
+    print("{0:.2f}".format(end - start))
 
 
 if __name__ == "__main__":
