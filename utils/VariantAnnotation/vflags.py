@@ -1,11 +1,11 @@
-#!/bin/env python3
+#!/usr/bin/env python3
 
 import config as cfg
 
 from utils.stats.statistical import calc_ExcessHet, calc_pHWE
 from utils.stats.count_gt import count_gt, count_gt1
 
-def calcVA(snp_samples, snp_record_filter):
+def calcVA(snp_samples, rec):
     """
     calcVA - get Variant Annotation; VFLAGS and ABHet
     Variant-level QC
@@ -25,6 +25,7 @@ def calcVA(snp_samples, snp_record_filter):
     vf = []
     pass_cnt = [0,0,0]
     fail_cnt = [0,0,0]
+    snp_record_filter = rec.filter
 
     # VFLAG 1
     if 'PASS' in snp_record_filter:
@@ -45,7 +46,7 @@ def calcVA(snp_samples, snp_record_filter):
                     mp_score = 1
                     badcall  = 0
 
-    [obs_hom1, obs_hets, obs_hom2, missing, gt_failed, depth_sum, failed, het_ad, het_dp] = count_gt(snp_samples)
+    [obs_hom1, obs_hets, obs_hom2, missing, gt_failed, depth_sum, failed, het_ad, het_dp] = count_gt(snp_samples, rec)
     total = obs_hom1 + obs_hets + obs_hom2 + missing + gt_failed
     non_missing = obs_hom1 + obs_hets + obs_hom2
 
@@ -120,7 +121,7 @@ def calcVA(snp_samples, snp_record_filter):
 
     return [vf, ab_het, pass_cnt, fail_cnt, missing, gt_failed, depth_sum, clean_obs]
 
-
+# deprecated
 def calcVFlags1(snp_samples, snp_record_filter, samples_list):
     """
     Variant-level QC

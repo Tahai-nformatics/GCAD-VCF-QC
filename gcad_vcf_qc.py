@@ -6,16 +6,21 @@ from pysam import VariantFile
 
 #import configparser
 import csv
-import os.path
-from collections import namedtuple, OrderedDict
+import os
+from collections import namedtuple, OrderedDict, Counter
 import time
 import cProfile
 
 from utils.VariantAnnotation.vflags import calcVA
+from utils.stats.count_gt import is_good_gt
+
+import utils.SampleAnnotation.sample_annotation as mi
 import config as cfg
 
 import warnings
 warnings.simplefilter('always')
+
+
 
 def extractSubSets(fam):
     """
@@ -23,7 +28,9 @@ def extractSubSets(fam):
                      values are SampID within it
     @return Samples Dict per Subset
     """
-    SampleFamDetail = namedtuple('SampleFamDetail',['SampID','FID','SubjID','FA','MO','SEX','AFF','AD','AGE','ADSPWGS','Subset','Subgroup','Race_Ethnicity','SeqCtr','ExcludeFromZHet'])
+    SampleFamDetail = namedtuple('SampleFamDetail',['SampID','FID','SubjID','FA','MO',
+                                                    'SEX','AFF','AD','AGE','ADSPWGS',
+                                                    'Subset','Subgroup','Race_Ethnicity','SeqCtr','ExcludeFromZHet'])
 
     samples = OrderedDict()
     ct = 0
@@ -34,14 +41,13 @@ def extractSubSets(fam):
             else:
                 samples[sm.Subset] = set()
                 samples[sm.Subset].add(sm.SampID)
-
             ct += 1
     return samples, ct
 
-def write_subset_stats(subset, rec, vf, abhet, passing, failing, missing, gt_failed, depth_sum, clean_obs):
+def write_subset_stats(subset, rec, vf, abhet, passing, failing, missing, gt_failed, depth_sum, clean_obs, mend_pairs, mend_errors):
     """
     """
-    outfile = 'summary.snv.{}_{}.out'.format(rec.contig, subset)
+    outfile = 'summary.snv.{}.tsv'.format( subset)
     newfile = not os.path.exists(outfile)
 
 
@@ -54,7 +60,7 @@ def write_subset_stats(subset, rec, vf, abhet, passing, failing, missing, gt_fai
                       'MeanDepth','HiDepth','ABHet','Mend_Incon','Mend_pairs','propMI','MultiAllele','FilteredOut',
                       'VFLAGS','rsID','RefAllele','AltAllele','QUAL','FILTER',
                       ]
-        writer = csv.DictWriter(csvfile, fieldnames=fieldnames , delimiter='\t')
+        writer = csv.DictWriter(csvfile, fieldnames=fieldnames , delimiter='\t', lineterminator='\n')
 
         if newfile:
             writer.writeheader()
@@ -77,7 +83,7 @@ def write_subset_stats(subset, rec, vf, abhet, passing, failing, missing, gt_fai
         maf = "{0:.6f}".format(maf)
 
         # MeanDepth
-        mean_depth = depth_sum / sum_clean if sum_clean > 0 else 0
+        mean_depth = depth_sum / sum_clean if sum_clean else 0
 
         writer.writerow({'CHR': rec.contig, 'POS': rec.pos,
                          'Pass00':passing[0],'Pass01':passing[1],'Pass11':passing[2],
@@ -91,7 +97,7 @@ def write_subset_stats(subset, rec, vf, abhet, passing, failing, missing, gt_fai
                          'MAF':maf,'AltAF':maf,
                          'MeanDepth':"{0:.6f}".format(mean_depth),'HiDepth':int(mean_depth > cfg.max_dp),
                          'ABHet':abhet,
-                         'Mend_Incon':0,'Mend_pairs':0,'propMI':0,
+                         'Mend_Incon':mend_errors, 'Mend_pairs':mend_pairs, 'propMI': "{0:.6f}".format(mend_errors / mend_pairs if mend_pairs >0 else 0),
                          'MultiAllele':0,'FilteredOut':0,
                          'VFLAGS':",".join(map(str,vf)),
                          'rsID':rec.id,'RefAllele':rec.ref,'AltAllele':rec.alts[0],
@@ -99,6 +105,71 @@ def write_subset_stats(subset, rec, vf, abhet, passing, failing, missing, gt_fai
                          })
 
 
+    return
+
+def write_mendelian_errors(rec, fam_info, genos ): # mmmm, genos
+    """
+    """
+    outfile = 'summary.mi.tsv'
+    newfile = not os.path.exists(outfile)
+
+    with open(outfile, 'a') as csvfile:
+        fieldnames = ['FID','PID','CID','CHR','POS','REF','ALT','PGT','CGT',]
+        writer = csv.DictWriter(csvfile, fieldnames=fieldnames , delimiter='\t', lineterminator='\n')
+
+        if newfile:
+            writer.writeheader()
+
+        writer.writerow({'FID': fam_info[0], 'PID':fam_info[1], 'CID': fam_info[2],
+                         'CHR': rec.contig, 'POS': rec.pos,
+                         'REF': rec.ref, 'ALT':rec.alts[0],
+                         'PGT': "/".join(map(str,genos[0])),'CGT': "/".join(map(str,genos[1]))
+                         })
+
+def write_indiv_summary():
+    """
+    """
+    outfile = 'summary.indiv.tsv'
+
+    with open(outfile, 'w') as csvfile:
+        fieldnames = ['SampleID','SEX',
+                      'total_nRR','total_nRA','total_nAA','Missing','Set_Missing',
+                      'Singleton','Doubleton','HetHom',
+                      'Ti','Tv','TiTvRatio','IndMeanDepth',
+                      '1P_MI','2P_MI','MI_pairs',]
+        writer = csv.DictWriter(csvfile, fieldnames=fieldnames , delimiter='\t', lineterminator='\n')
+
+        writer.writeheader()
+
+        abc_order = OrderedDict(sorted(mi.sa.sa_collection.items()))
+        for indiv, val in abc_order.items():
+            # ti/tv
+            ti_tv = val.tallySA['ti'] / val.tallySA['tv'] if val.tallySA['tv'] else 0
+
+            # HetHom is the ratio of hets to homozygous alt SNVs
+            het_hom = val.tallySA[(0,1)] / val.tallySA[(1,1)] if val.tallySA[(1,1)] else 0
+
+            # mean_depth
+            good_het_gt = val.tallySA[(0,1)] + val.tallySA[(1,0)]
+            good_gt = val.tallySA[(0,0)] + good_het_gt + val.tallySA[(1,1)]
+            mean_depth = val.dp_total / good_gt if good_gt else 0
+
+            writer.writerow({'SampleID': indiv, 'SEX':val.details_dict.SEX,
+                            'total_nRR': val.tallySA[(0,0)],'total_nRA': good_het_gt,'total_nAA': val.tallySA[(1,1)],
+                            'Missing': val.tallySA[(None,None)],'Set_Missing': val.tallySA[-9],
+                            'Singleton': val.tallySA['singleton'],'Doubleton': val.tallySA['doubleton'],'HetHom':"{0:.2f}".format(het_hom),
+                            'Ti':val.tallySA['ti'], 'Tv':val.tallySA['tv'], 'TiTvRatio':"{0:.2f}".format(ti_tv),'IndMeanDepth':"{0:.2f}".format(mean_depth),
+                            '1P_MI':val.tallySA['vp1'],'2P_MI':val.tallySA['vp2'],'MI_pairs':val.tallySA['mend_pair'],
+                            })
+
+
+def delete_previous_outputs(prefix, subsets):
+    """
+    """
+    mi_file = 'summary.mi.tsv'
+    for out_file in [mi_file] + [ '{}.{}.tsv'.format(prefix, x) for x in subsets]:
+        if os.path.exists(out_file):
+            os.remove(out_file)
     return
 
 def main():
@@ -118,8 +189,8 @@ def main():
     grp_settings.add_argument('--minTranche', type=int, help='Minimum Tranche Score (Filter from VQSR)', default=99.7, required=False)
     grp_settings.add_argument('--miss_rate', type=int, help='max missingness threshold', default=0.2, required=False)
     grp_settings.add_argument('--max_dp', type=int, help='max DP threshold', default=500, required=False)
-    grp_settings.add_argument('--hetz_lim1', type=int, help='', default=5, required=False)
-    grp_settings.add_argument('--hetz_lim2', type=int, help='', default=6.101825, required=False)
+    grp_settings.add_argument('--hetz_lim1', type=int, help='', default=99999, required=False)
+    grp_settings.add_argument('--hetz_lim2', type=int, help='', default=99999, required=False)
     grp_settings.add_argument('--hwe_pval', type=int, help='', default=5e-06, required=False)
     grp_settings.add_argument('--hwe_maf', type=int, help='MAF threshold', default=0.01, required=False)
 
@@ -136,9 +207,10 @@ def main():
     cfg.hwe_pval = args.hwe_pval
     cfg.hwe_maf = args.hwe_maf
 
-    createSampleAnnotation(args.fam)
+    mi.createSampleAnnotation(args.fam)
     samplesDict, famCt = extractSubSets(args.fam) # returns dict
-    print("[FAM] Found {} subsets: {}; for {} sampIDs".format(len(samplesDict.keys()), list(samplesDict.keys()), famCt))
+
+    print("[FAM] Found {} subsets: {}; totaling {} sampIDs".format(len(samplesDict.keys()), list(samplesDict.keys()), famCt))
     print("[FAM] {}".format([  "{}:{}".format(k, len(samplesDict[k]))  for k in samplesDict.keys()]))
     #{k:rec.samples[k] for k in samples['sub1']}
     #{k:rec.samples[k] for k in samples['sub1'] if k in rec.samples}
@@ -175,78 +247,156 @@ def main():
         rStart = int(args.region.split(':')[1].split('-')[0]) - 1
         rEnd = int(args.region.split(':')[1].split('-')[1])
 
+    delete_previous_outputs('summary.snv',list(samplesDict.keys()))
+
     for rec in vcf_in.fetch(rChr, rStart, rEnd):
         #vcf_out.write(rec)
-        if ct>84:break
-
+        #if ct>500:break
+        #if rec.pos < 10684424: continue
         if len(rec.alts) > 1:
             print("Warning found multiallelic variant")
             contine
 
-        print(str(rec.contig) + '\t', str(rec.pos) + '\t', str(rec.ref) + '\t', str(rec.alts[0]) + '\t', end='')
+        #print(str(rec.contig) + '\t', str(rec.pos) + '\t', str(rec.ref) + '\t', str(rec.alts[0]) + '\t', end='')
 
-        # Method 1
-        #for sm_list in extraction_set:
-        #    vf = calcVFlags1(rec.samples, rec.filter, sm_list)
-        #    print("VFLAGS_{}={};".format('', vf), end='')
-
-        # Method 2
-        #for subset, sm_list in samplesDict.items():
-
-            #gss = dict() # slice rec samples
-            #for key,sm in rec.samples.items():
-                #if key not in sm_list: continue ## !SLOW!
-                #gss[key] = sm
-
-            #vf = calcVFlags(gss, rec.filter)
-
-         #   print("VFLAGS_{}={};".format(subset,vf), end='')
-
-        #print()
-
-        # Method 3
-        #for key,sm in rec.samples.items():
-            #for subset, sm_list in samplesDict.items():
-                #if key in sm_list['list']: ## !SLOW!
-                    #samplesDict[subset]['dict'][key] = sm
-
-        #for subset, sm_list in samplesDict.items():
-            #vf = calcVFlags(sm_list['dict'], rec.filter)
-            #print("VFLAGS_{}={};".format(subset, vf), end='')
-
-        # Method 4 - set()
-        #for subset, sm_set in samplesDict.items():
-
-            #gss = dict() # slice rec samples
-            #for key,sm in rec.samples.items():
-
-                #if key in sm_set:
-                    #gss[key] = sm
-
-            #vf = calcVFlags(gss, rec.filter)
-            #print("VFLAGS_{}={};".format(subset, vf), end='')
-
-        # Method 5 - set, one pass
-        for key,sm in rec.samples.items():
-            for subset, sm_set in samplesDict.items():
-                if key in sm_set['set']:
-                    samplesDict[subset]['dict'][key] = sm
+        #
+        samplesDict = gather_intersect_fam_vcf_samples(rec.samples, samplesDict)
 
         for subset, sm_list in samplesDict.items():
-            [vf, abhet, passing, failing, missing, gt_failed, depth_sum, clean_obs] = calcVA(sm_list['dict'], rec.filter)
+            [vf, abhet, passing, failing, missing, gt_failed, depth_sum, clean_obs] = calcVA(sm_list['dict'], rec)
 
-            if subset == 'ADSPccWGS':
-                print("VFLAGS_{}={};".format(subset, vf), end='')
-                print("ABHet_{}={};".format(subset, abhet), end='')
-            write_subset_stats(subset, rec, vf, abhet, passing, failing, missing, gt_failed, depth_sum, clean_obs )
+            mend_pairs, mend_errors = check_mendelian_errors(rec)
 
-        print()
+            #if subset == 'ADSPfamWGS' and mend_errors > 0:
+            #    print("VFLAGS_{}={};".format(subset, vf), end='')
+            #    print("ABHet_{}={};".format(subset, abhet), end='')
+                #print(str(rec.contig) + '\t', str(rec.pos) + '\t', str(rec.ref) + '\t', str(rec.alts[0]) + '\t', end='')
+                #print("failing={};gt_failed={}".format(failing, gt_failed), end=' ')
+                #print("mi={};mp={}".format(mend_errors, mend_pairs), end=' ')
+                #print()
+
+            write_subset_stats(subset, rec, vf, abhet, passing, failing, missing, gt_failed, depth_sum, clean_obs, mend_pairs, mend_errors )
+
+        #print()
         ct += 1
 
     end = time.time()
     print("{0:.2f}".format(end - start))
+    write_indiv_summary()
 
+def gather_intersect_fam_vcf_samples(vcf_samples, fam_samples):
+    """
+    """
+    # Method 1
+    #for sm_list in extraction_set:
+    #    vf = calcVFlags1(rec.samples, rec.filter, sm_list)
+    #    print("VFLAGS_{}={};".format('', vf), end='')
+
+    # Method 2
+    #for subset, sm_list in samplesDict.items():
+
+        #gss = dict() # slice rec samples
+        #for key,sm in rec.samples.items():
+            #if key not in sm_list: continue ## !SLOW!
+            #gss[key] = sm
+
+        #vf = calcVFlags(gss, rec.filter)
+
+        #   print("VFLAGS_{}={};".format(subset,vf), end='')
+
+    #print()
+
+    # Method 3
+    #for key,sm in rec.samples.items():
+        #for subset, sm_list in samplesDict.items():
+            #if key in sm_list['list']: ## !SLOW!
+                #samplesDict[subset]['dict'][key] = sm
+
+    #for subset, sm_list in samplesDict.items():
+        #vf = calcVFlags(sm_list['dict'], rec.filter)
+        #print("VFLAGS_{}={};".format(subset, vf), end='')
+
+    # Method 4 - set()
+    #for subset, sm_set in samplesDict.items():
+
+        #gss = dict() # slice rec samples
+        #for key,sm in rec.samples.items():
+
+            #if key in sm_set:
+                #gss[key] = sm
+
+        #vf = calcVFlags(gss, rec.filter)
+        #print("VFLAGS_{}={};".format(subset, vf), end='')
+
+    # Method 5 - set, one pass
+    for key,sm in vcf_samples.items():
+        for subset, sm_set in fam_samples.items():
+            if key in sm_set['set']:
+                fam_samples[subset]['dict'][key] = sm
+    return fam_samples
+
+def check_mendelian_errors(rec):
+    """
+    """
+    samples = rec.samples
+    mend_pairs = 0
+    mend_error = 0
+    for kid in mi.sa.get_mi_kids():
+        validparents = []
+        found_mi_error = 0
+
+        father = mi.sa.get_father(kid)
+        mother = mi.sa.get_mother(kid)
+
+        if father in mi.sa.id_list and is_good_gt(samples[ father ]):
+            mend_pairs += 1
+            validparents.append(father)
+
+        if mother in mi.sa.id_list and is_good_gt(samples[ mother ]):
+            mend_pairs += 1
+            validparents.append(mother)
+
+        # mend_error is child having allele not from parents
+        if validparents == []:
+            continue
+        elif len(validparents) == 1:
+            if (samples[kid]['GT'] in {(0,0), (1,1)}
+                and
+                samples[ validparents[0] ]['GT'] in {(0,0), (1,1)}
+                and
+                (abs(sum(samples[kid]['GT']) - sum(samples[ validparents[0] ]['GT'])) == 2)
+                ):
+                mend_error += 1
+                found_mi_error = 1
+        elif len(validparents) == 2:
+            # mend error when homozygous child that doesn't allele match homozygous parents
+            if (samples[kid]['GT'] in {(0,0), (1,1)}
+                and
+                (sum(samples[ validparents[0] ]['GT']) + sum(samples[ validparents[1] ]['GT']) in {0,4} )
+                and
+                (samples[kid]['GT'] != samples[ validparents[0] ]['GT'])
+                ):
+                mend_error += 1
+                found_mi_error = 1
+            elif sum(samples[kid]['GT']) == 1:
+            # mend_error if heterozygous child has homozygous matching parents
+                if sum(samples[father]['GT']) + sum(samples[mother]['GT']) in {0,4}:
+                    mend_error += 1
+                    found_mi_error = 1
+            #else: clean child
+
+        mi.sa.sa_collection[kid].tallySA['mend_pair'] += 1
+
+        if found_mi_error:
+            # save details
+            write_mendelian_errors(rec,
+                                   [mi.sa.get_fam_id(kid), validparents[0], kid],
+                                   [samples[ validparents[0] ]['GT'], samples[kid]['GT'] ]
+                                   )
+            mi.sa.sa_collection[kid].tallySA['vp' + str(len(validparents)) ] += 1
+
+    return mend_pairs, mend_error
 
 if __name__ == "__main__":
     main()
-    #cProfile.run('main()', None, 'cumtime')
+    cProfile.run('main()', None, 'cumtime')
