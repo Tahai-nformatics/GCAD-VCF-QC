@@ -71,34 +71,34 @@ def calcVA(snp_samples, rec):
             vf.append(5)
 
     # VFLAG 6
-    maf = 0
-    if  non_missing > 0:
-        maf = (obs_hets + (2 * obs_hom2)) / (2*(non_missing))
-        #if (maf > 0.5):
-        #        maf = 1 - maf
+    #maf = 0
+    #if  non_missing > 0:
+        #maf = (obs_hets + (2 * obs_hom2)) / (2*(non_missing))
+        ##if (maf > 0.5):
+        ##        maf = 1 - maf
 
-    if cfg.isFam:
-        z_het, hetz_maf = calc_ExcessHet(obs_hom1, obs_hets, obs_hom2)
-        if z_het == '.': z_het = 0
+    #if cfg.isFam:
+        #z_het, hetz_maf = calc_ExcessHet(obs_hom1, obs_hets, obs_hom2)
+        #if z_het == '.': z_het = 0
 
-        if   ((maf <  0.2  or maf  > 0.8) and (abs(float(z_het)) > cfg.hetz_lim1)):
-            vf.append(6)
-        elif ((maf >= 0.2 and maf <= 0.8) and (abs(float(z_het)) > cfg.hetz_lim2)):
-            vf.append(6)
+        #if   ((maf <  0.2  or maf  > 0.8) and (abs(float(z_het)) > cfg.hetz_lim1)):
+            #vf.append(6)
+        #elif ((maf >= 0.2 and maf <= 0.8) and (abs(float(z_het)) > cfg.hetz_lim2)):
+            #vf.append(6)
 
-    else:
-        z_het = '.'
+    #else:
+        #z_het = '.'
 
-        if non_missing > 0:
-            if (maf > 0.5):
-                maf = 1 - maf
+        #if non_missing > 0:
+            #if (maf > 0.5):
+                #maf = 1 - maf
 
-            # Calc Hardy-Weinberg equilibrium if MAF>0.01
-            if maf > hwe_maf:
-                z_het = calc_pHWE(obs_hom1, obs_hets, obs_hom2)
+            ## Calc Hardy-Weinberg equilibrium if MAF>0.01
+            #if maf > hwe_maf:
+                #z_het = calc_pHWE(obs_hom1, obs_hets, obs_hom2)
 
-        if((z_het >= 1) or (z_het < hwe_pval)):
-            vf.append(6)
+        #if((z_het >= 1) or (z_het < hwe_pval)):
+            #vf.append(6)
 
     # VFLAG 0
     # Presense of VFLAGs counts as failing GTs
