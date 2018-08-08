@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-from collections import namedtuple, Counter
+from collections import namedtuple, defaultdict, Counter
 import csv
 
 class Sample:
@@ -16,10 +16,10 @@ class Sample:
         self.has_mother = True
 
     def get_subset(self):
-        return details_dict.Subset
+        return self.details_dict.Subset
 
     def get_subgroup(self):
-        return details_dict.Subgroup
+        return self.details_dict.Subgroup
 
 class SampleAnnotation:
     """
@@ -29,6 +29,11 @@ class SampleAnnotation:
         self.id_list = set()
         #self.good_gt = set()
         self.mi_kids = list()
+        self.singletons = list()
+        self.private_dbltons = list()
+        self.dbltons = list()
+        self.subsets = defaultdict(set)
+        self.subgroups = set()
 
     def add_family_sample(self, sample):
         if sample.details_dict.FA in self.id_list:
@@ -40,10 +45,18 @@ class SampleAnnotation:
         self.sa_collection[sample.details_dict.SampID] = sample # has namedtuple(details_dict)
 
         # tally
-        self.sa_collection[sample.details_dict.SampID].tallySA = Counter()
-
+        self.sa_collection[sample.details_dict.SampID].tallySA = dict.fromkeys([-9, (None,None), (0,0), (0,1), (1,0), (1,1), 
+                                                                                'mend_pair','vp1','vp2',
+                                                                                'ti', 'tv', 'singleton', 'p_dblton', 'doubleton'],0)
         # DP store
         self.sa_collection[sample.details_dict.SampID].dp_total = 0
+
+        # store the subsets-subgroups
+        self.subsets[ sample.get_subset() ].add(sample.get_subgroup())
+
+        # store the subgroups
+        self.subgroups.add( sample.get_subgroup() )
+
         return
 
     def add_id(self,indiv_id):
@@ -127,6 +140,15 @@ class SampleAnnotation:
 
     def add_dp(self,indiv_id, dp):
         self.sa_collection[indiv_id].dp_total += dp
+
+    def add_singleton(self, indiv_id):
+        self.singletons.append(indiv_id)
+
+    def add_private_dbltons(self, indiv_id):
+        self.private_dbltons.append(indiv_id)
+
+    def add_dbltons(self, indiv_id):
+        self.dbltons.append(indiv_id)
 
 def createSampleAnnotation(fam):
     """

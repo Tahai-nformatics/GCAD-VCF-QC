@@ -73,10 +73,12 @@ def write_subset_stats(subset, rec, vf, abhet, passing, failing, missing, gt_fai
 
         # MAF / AltAF; altAF = maf
         maf = 0
+        alt_maf = 0
         temp = 2 * sum_clean
 
         if temp > 0:
             maf = (clean_obs[1] + 2 * clean_obs[2]) / temp
+            alt_maf = maf
             if maf > 0.5:
                 maf = 1 - maf
 
@@ -92,15 +94,16 @@ def write_subset_stats(subset, rec, vf, abhet, passing, failing, missing, gt_fai
                          'Clean00':clean_obs[0],'Clean01':clean_obs[1],'Clean11':clean_obs[2],
                          'Mono':int(3 in vf),
                          'CallRate':"{0:.6f}".format(callrate),
-                         'CallBad': int(callrate <= (1 - cfg.miss_rate)),
+                         'CallBad': int(callrate < (1 - cfg.miss_rate)),
                          'GATKPass':int(1 not in vf),
-                         'MAF':maf,'AltAF':maf,
+                         'MAF':maf,'AltAF':"{0:.6f}".format(alt_maf),
                          'MeanDepth':"{0:.6f}".format(mean_depth),'HiDepth':int(mean_depth > cfg.max_dp),
                          'ABHet':abhet,
                          'Mend_Incon':mend_errors, 'Mend_pairs':mend_pairs, 'propMI': "{0:.6f}".format(mend_errors / mend_pairs if mend_pairs >0 else 0),
-                         'MultiAllele':0,'FilteredOut':0,
+                         'MultiAllele':0,'FilteredOut':int(0 not in vf),
                          'VFLAGS':",".join(map(str,vf)),
-                         'rsID':rec.id,'RefAllele':rec.ref,'AltAllele':rec.alts[0],
+                         'rsID':rec.id if rec.id else '.',
+                         'RefAllele':rec.ref,'AltAllele':",".join(map(str,rec.alts)),
                          'QUAL':"{0:.2f}".format(rec.qual),'FILTER':",".join(rec.filter.keys()),
                          })
 
@@ -157,7 +160,10 @@ def write_indiv_summary():
             writer.writerow({'SampleID': indiv, 'SEX':val.details_dict.SEX,
                             'total_nRR': val.tallySA[(0,0)],'total_nRA': good_het_gt,'total_nAA': val.tallySA[(1,1)],
                             'Missing': val.tallySA[(None,None)],'Set_Missing': val.tallySA[-9],
-                            'Singleton': val.tallySA['singleton'],'Doubleton': val.tallySA['doubleton'],'HetHom':"{0:.2f}".format(het_hom),
+                            'Singleton': val.tallySA['singleton'],
+                            #'Private_Doubleton': val.tallySA['p_dblton'],
+                            'Doubleton': val.tallySA['doubleton'] + val.tallySA['p_dblton'],
+                            'HetHom':"{0:.2f}".format(het_hom),
                             'Ti':val.tallySA['ti'], 'Tv':val.tallySA['tv'], 'TiTvRatio':"{0:.2f}".format(ti_tv),'IndMeanDepth':"{0:.2f}".format(mean_depth),
                             '1P_MI':val.tallySA['vp1'],'2P_MI':val.tallySA['vp2'],'MI_pairs':val.tallySA['mend_pair'],
                             })
@@ -215,6 +221,8 @@ def main():
     #{k:rec.samples[k] for k in samples['sub1']}
     #{k:rec.samples[k] for k in samples['sub1'] if k in rec.samples}
     #{key: d[key] for key in d.viewkeys() & l}
+    print("[FAM] {} unique subgroups:{}".format(len(mi.sa.subgroups),sorted( mi.sa.subgroups)))
+    print("[FAM] {} ".format([  "{}:{}".format(k, v)  for k,v in mi.sa.subsets.items() ]))
 
     vcf_in = VariantFile(args.vcf)
     #vcf_out = VariantFile(args.outfile, 'w', header=vcf_in.header, threads=4)
@@ -261,11 +269,14 @@ def main():
 
         #
         samplesDict = gather_intersect_fam_vcf_samples(rec.samples, samplesDict)
+        grp_obs = list()
 
         for subset, sm_list in samplesDict.items():
-            [vf, abhet, passing, failing, missing, gt_failed, depth_sum, clean_obs] = calcVA(sm_list['dict'], rec)
+            [vf, abhet, passing, failing, missing, gt_failed, depth_sum, clean_obs, subg] = calcVA(sm_list['dict'], rec)
 
+            grp_obs.append(clean_obs)
             mend_pairs, mend_errors = check_mendelian_errors(rec)
+            #subg = calculate_subgroup_scores(subg)
 
             #if subset == 'ADSPfamWGS' and mend_errors > 0:
             #    print("VFLAGS_{}={};".format(subset, vf), end='')
@@ -277,6 +288,23 @@ def main():
 
             write_subset_stats(subset, rec, vf, abhet, passing, failing, missing, gt_failed, depth_sum, clean_obs, mend_pairs, mend_errors )
 
+        #if len(mi.sa.singletons) > 1 :
+            #for idv in mi.sa.singletons:
+                #mi.sa.sa_collection[idv].tallySA['singleton'] -= 1
+            #mi.sa.singletons.clear()
+        #if len(mi.sa.private_dbltons) > 1:
+            #for idv in mi.sa.private_dbltons:
+                #mi.sa.sa_collection[idv].tallySA['p_dblton'] -= 1
+            #mi.sa.private_dbltons.clear()
+        #if len(mi.sa.dbltons) > 2:
+            #for idv in mi.sa.dbltons:
+                #mi.sa.sa_collection[idv].tallySA['doubleton'] -= 1
+            #mi.sa.dbltons.clear()
+
+        total_obs = list(map(sum, zip(*grp_obs)))
+
+        find_s_d(total_obs, rec.samples)
+
         #print()
         ct += 1
 
@@ -284,6 +312,63 @@ def main():
     print("{0:.2f}".format(end - start))
     write_indiv_summary()
 
+def find_s_d(total_obs, samples):
+    maf = 0
+    if sum(total_obs) > 0:
+        maf = (total_obs[1] + 2 * total_obs[2]) / (2 * sum(total_obs))
+    if maf <= 0.5:
+        #singleton
+        if total_obs[1] == 1 and total_obs[2] == 0:
+            idv = find_singleton(samples)
+            if idv: mi.sa.sa_collection[idv].tallySA['singleton'] += 1
+        elif total_obs[2] == 1 and total_obs[1] == 0:
+            idv = find_private_doubleton(samples, 1)
+            if idv: mi.sa.sa_collection[idv].tallySA['p_dblton'] += 1
+        elif total_obs[1] == 2 and total_obs[2] == 0:
+            dbltons = find_doubletons(samples)
+            for idv in dbltons:
+                mi.sa.sa_collection[idv].tallySA['doubleton'] += 1
+    else:
+        if total_obs[1] == 1 and total_obs[0] == 0:
+            idv = find_singleton(samples)
+            mi.sa.sa_collection[idv].tallySA['singleton'] += 1
+        elif total_obs[0] == 1 and total_obs[1] == 0:
+            idv = find_private_doubleton(samples, 0)
+            if idv: mi.sa.sa_collection[idv].tallySA['p_dblton'] += 1
+        elif total_obs[1] == 2 and total_obs[0] == 0:
+            dbltons = find_doubletons(samples)
+            for idv in dbltons:
+                mi.sa.sa_collection[idv].tallySA['doubleton'] += 1
+
+def find_singleton(samples):
+    for k,sm in samples.items():
+        if (sm['GT'] == (1, 0)
+            or sm['GT'] == (0, 1)
+            and (sm['DP'] >= cfg.MINDP
+                and sm['GQ'] >= cfg.MINGQ)
+            ):
+            return k
+
+def find_private_doubleton(samples, allele):
+    for k,sm in samples.items():
+        if (sm['GT'] == (allele, allele)
+            and (sm['DP'] >= cfg.MINDP
+                and sm['GQ'] >= cfg.MINGQ)):
+            return k
+
+def find_doubletons(samples):
+    k_list = list()
+    for k,sm in samples.items():
+        if (sm['GT'] == (1, 0)
+            or sm['GT'] == (0, 1)
+            and (sm['DP'] >= cfg.MINDP
+                and sm['GQ'] >= cfg.MINGQ)
+            ):
+            k_list.append(k)
+        if len(k_list) == 2:
+            return k_list
+
+    return k_list
 def gather_intersect_fam_vcf_samples(vcf_samples, fam_samples):
     """
     """
