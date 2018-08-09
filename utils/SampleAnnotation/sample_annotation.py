@@ -45,7 +45,7 @@ class SampleAnnotation:
         self.sa_collection[sample.details_dict.SampID] = sample # has namedtuple(details_dict)
 
         # tally
-        self.sa_collection[sample.details_dict.SampID].tallySA = dict.fromkeys([-9, (None,None), (0,0), (0,1), (1,0), (1,1), 
+        self.sa_collection[sample.details_dict.SampID].tallySA = dict.fromkeys([-9, (None,None), (0,0), (0,1), (1,0), (1,1),
                                                                                 'mend_pair','vp1','vp2',
                                                                                 'ti', 'tv', 'singleton', 'p_dblton', 'doubleton'],0)
         # DP store

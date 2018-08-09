@@ -46,7 +46,7 @@ def calcVA(snp_samples, rec):
                     mp_score = 1
                     badcall  = 0
 
-    [obs_hom1, obs_hets, obs_hom2, missing, gt_failed, depth_sum, failed, het_ad, het_dp] = count_gt(snp_samples, rec)
+    [obs_hom1, obs_hets, obs_hom2, missing, gt_failed, depth_sum, failed, het_ad, het_dp, subg] = count_gt(snp_samples, rec)
     total = obs_hom1 + obs_hets + obs_hom2 + missing + gt_failed
     non_missing = obs_hom1 + obs_hets + obs_hom2
 
@@ -119,7 +119,7 @@ def calcVA(snp_samples, rec):
     else:
         ab_het = "0.0000"
 
-    return [vf, ab_het, pass_cnt, fail_cnt, missing, gt_failed, depth_sum, clean_obs]
+    return [vf, ab_het, pass_cnt, fail_cnt, missing, gt_failed, depth_sum, clean_obs, subg]
 
 # deprecated
 def calcVFlags1(snp_samples, snp_record_filter, samples_list):

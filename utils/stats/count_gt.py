@@ -18,12 +18,10 @@ def count_gt(samples,rec):
     failed = [0,0,0]
     het_ad = 0 # for ABHET
     het_dp = 0 # for ABHET
-    #singleton = ''
-    #p_dblton = ''
-    #doubletons = []
+
     #subgroup_counts = dict.fromkeys(mi.sa.subgroups, defaultdict(int))
-    subgroup_counts = OrderedDict.fromkeys(mi.sa.subgroups, [0,0,0])
-    subgroup_counts = OrderedDict({key:[0,0,0] for (key,value) in subgroup_counts.items()})
+    #subgroup_counts = OrderedDict.fromkeys(mi.sa.subgroups, [0,0,0])
+    subgroup_counts = OrderedDict({key:[0,0,0] for key in mi.sa.subgroups})
 
     ref = rec.ref
     alt = rec.alts[0]
@@ -85,11 +83,6 @@ def count_gt(samples,rec):
 
             subgroup_counts = increment_subgroup(k, subgroup_counts, 1)
 
-            #if obs_hts == 1 and obs_hom2 == 0:
-                #singleton = k
-            #elif obs_hts == 2 and obs_hom2 == 0:
-                #doubletons = [singleton, k]
-                #singleton = None
         elif sm['GT'] == (0,0):
             obs_hom1 += 1
             subgroup_counts = increment_subgroup(k, subgroup_counts, 0)
@@ -104,23 +97,11 @@ def count_gt(samples,rec):
         tallyPassing(k, sm, ref, alt)
 
 
-    #if obs_hts == 1 and obs_hom2 == 0:
-        #mi.sa.sa_collection[singleton].tallySA['singleton'] += 1
-        #mi.sa.add_singleton(singleton)
-    #elif obs_hom2 == 1 and obs_hts == 0:
-        #mi.sa.sa_collection[p_dblton].tallySA['p_dblton'] += 1
-        #mi.sa.add_private_dbltons(p_dblton)
-    #elif obs_hts == 2 and obs_hom2 == 0:
-        #for indiv in doubletons:
-            #mi.sa.sa_collection[indiv].tallySA['doubleton'] += 1
-            #mi.sa.add_dbltons(indiv)
-
     return [obs_hom1, obs_hts, obs_hom2, missing, gt_failed, depth_sum, failed, het_ad, het_dp, subgroup_counts]
 
 def increment_subgroup(k, subgroup_counts, idx):
     subgroup_counts[ mi.sa.sa_collection[k].get_subgroup() ][idx] += 1
-    #subgroup_counts.update({mi.sa.sa_collection[k].get_subgroup():tmp})
-    #subgroup_counts[ mi.sa.sa_collection[k].get_subgroup() ] = tmp
+
     return subgroup_counts
 
 def tallyMissing(k, sm):

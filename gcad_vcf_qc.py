@@ -13,6 +13,7 @@ import cProfile
 
 from utils.VariantAnnotation.vflags import calcVA
 from utils.stats.count_gt import is_good_gt
+from utils.stats.statistical import calc_ExcessHet, calc_pHWE
 
 import utils.SampleAnnotation.sample_annotation as mi
 import config as cfg
@@ -44,7 +45,7 @@ def extractSubSets(fam):
             ct += 1
     return samples, ct
 
-def write_subset_stats(subset, rec, vf, abhet, passing, failing, missing, gt_failed, depth_sum, clean_obs, mend_pairs, mend_errors):
+def write_subset_stats(subset, rec, vf, abhet, passing, failing, missing, gt_failed, depth_sum, clean_obs, mend_pairs, mend_errors, scores):
     """
     """
     outfile = 'summary.snv.{}.tsv'.format( subset)
@@ -60,6 +61,8 @@ def write_subset_stats(subset, rec, vf, abhet, passing, failing, missing, gt_fai
                       'MeanDepth','HiDepth','ABHet','Mend_Incon','Mend_pairs','propMI','MultiAllele','FilteredOut',
                       'VFLAGS','rsID','RefAllele','AltAllele','QUAL','FILTER',
                       ]
+        fieldnames.extend(scores.keys())
+
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames , delimiter='\t', lineterminator='\n')
 
         if newfile:
@@ -87,7 +90,7 @@ def write_subset_stats(subset, rec, vf, abhet, passing, failing, missing, gt_fai
         # MeanDepth
         mean_depth = depth_sum / sum_clean if sum_clean else 0
 
-        writer.writerow({'CHR': rec.contig, 'POS': rec.pos,
+        row = {'CHR': rec.contig, 'POS': rec.pos,
                          'Pass00':passing[0],'Pass01':passing[1],'Pass11':passing[2],
                          'Fail00':failing[0],'Fail01':failing[1],'Fail11':failing[2],
                          'Missing':missing, 'GT_Failed':gt_failed,
@@ -105,7 +108,9 @@ def write_subset_stats(subset, rec, vf, abhet, passing, failing, missing, gt_fai
                          'rsID':rec.id if rec.id else '.',
                          'RefAllele':rec.ref,'AltAllele':",".join(map(str,rec.alts)),
                          'QUAL':"{0:.2f}".format(rec.qual),'FILTER':",".join(rec.filter.keys()),
-                         })
+                         }
+        row.update(scores)
+        writer.writerow(row)
 
 
     return
@@ -276,7 +281,7 @@ def main():
 
             grp_obs.append(clean_obs)
             mend_pairs, mend_errors = check_mendelian_errors(rec)
-            #subg = calculate_subgroup_scores(subg)
+            scores = calculate_subgroup_scores(subset,subg)
 
             #if subset == 'ADSPfamWGS' and mend_errors > 0:
             #    print("VFLAGS_{}={};".format(subset, vf), end='')
@@ -286,20 +291,8 @@ def main():
                 #print("mi={};mp={}".format(mend_errors, mend_pairs), end=' ')
                 #print()
 
-            write_subset_stats(subset, rec, vf, abhet, passing, failing, missing, gt_failed, depth_sum, clean_obs, mend_pairs, mend_errors )
+            write_subset_stats(subset, rec, vf, abhet, passing, failing, missing, gt_failed, depth_sum, clean_obs, mend_pairs, mend_errors, scores )
 
-        #if len(mi.sa.singletons) > 1 :
-            #for idv in mi.sa.singletons:
-                #mi.sa.sa_collection[idv].tallySA['singleton'] -= 1
-            #mi.sa.singletons.clear()
-        #if len(mi.sa.private_dbltons) > 1:
-            #for idv in mi.sa.private_dbltons:
-                #mi.sa.sa_collection[idv].tallySA['p_dblton'] -= 1
-            #mi.sa.private_dbltons.clear()
-        #if len(mi.sa.dbltons) > 2:
-            #for idv in mi.sa.dbltons:
-                #mi.sa.sa_collection[idv].tallySA['doubleton'] -= 1
-            #mi.sa.dbltons.clear()
 
         total_obs = list(map(sum, zip(*grp_obs)))
 
@@ -311,6 +304,22 @@ def main():
     end = time.time()
     print("{0:.2f}".format(end - start))
     write_indiv_summary()
+
+def calculate_subgroup_scores(subset, subg):
+    """
+    """
+    scores = OrderedDict()
+    for k in mi.sa.subsets[subset]:
+        val = subg[k]
+        scores['nClean_' + k] = sum(val) #",".join(map(str,val)),
+        scores['Zhet_' + k] = calc_ExcessHet(*val)[0]
+        scores['pHWE_' + k] = calc_pHWE(*val)
+        if type(scores['Zhet_' + k]) == float:
+            scores['Zhet_' + k] = "{0:.6f}".format(scores['Zhet_' + k])
+        if type(scores['pHWE_' + k]) == float:
+            scores['pHWE_' + k] = "{0:.6f}".format(scores['pHWE_' + k])
+
+    return scores
 
 def find_s_d(total_obs, samples):
     maf = 0
@@ -484,4 +493,4 @@ def check_mendelian_errors(rec):
 
 if __name__ == "__main__":
     main()
-    cProfile.run('main()', None, 'cumtime')
+    #cProfile.run('main()', None, 'tottime')
