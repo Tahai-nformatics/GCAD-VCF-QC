@@ -88,7 +88,8 @@ def calc_pHWE(aa,ab,bb):
     rare_copies = 2 * obs_homr + ab
     genotypes = obs_homc + obs_homr + ab
 
-    if genotypes <= 0: return -1
+    if genotypes == 0: return 0
+    elif genotypes < 0: return -1
 
     mid = int(rare_copies * (2 * genotypes - rare_copies) / (2 * genotypes))
 
