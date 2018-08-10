@@ -93,25 +93,25 @@ def write_subset_stats(prefix, subset, rec, vf, abhet, passing, failing, missing
         mean_depth = depth_sum / sum_clean if sum_clean else 0
 
         row = {'CHR': rec.contig, 'POS': rec.pos,
-                         'Pass00':passing[0],'Pass01':passing[1],'Pass11':passing[2],
-                         'Fail00':failing[0],'Fail01':failing[1],'Fail11':failing[2],
-                         'Missing':missing, 'GT_Failed':gt_failed,
-                         'Clean00':clean_obs[0],'Clean01':clean_obs[1],'Clean11':clean_obs[2],
-                         'Mono':int(3 in vf),
-                         'CallRate':"{0:.6f}".format(callrate),
-                         'CallBad': int(callrate < (1 - cfg.miss_rate)),
-                         'GATKPass':int(1 not in vf),
-                         'MAF':maf,'AltAF':"{0:.6f}".format(alt_maf),
-                         'MeanDepth':"{0:.6f}".format(mean_depth),'HiDepth':int(mean_depth > cfg.max_dp),
-                         'ABHet':abhet,
-                         'Mend_Incon':mend_errors, 'Mend_pairs':mend_pairs, 'propMI': "{0:.6f}".format(mend_errors / mend_pairs if mend_pairs >0 else 0),
-                         'MultiAllele':0,'FilteredOut':int(0 not in vf),
-                         'VFLAGS':",".join(map(str,vf)),
-                         'rsID':rec.id if rec.id else '.',
-                         'RefAllele':rec.ref,'AltAllele':",".join(map(str,rec.alts)),
-                         'QUAL':"{0:.2f}".format(rec.qual),'FILTER':",".join(rec.filter.keys()),
-                         'VTYPE': vtype
-                         }
+            'Pass00':passing[0],'Pass01':passing[1],'Pass11':passing[2],
+            'Fail00':failing[0],'Fail01':failing[1],'Fail11':failing[2],
+            'Missing':missing, 'GT_Failed':gt_failed,
+            'Clean00':clean_obs[0],'Clean01':clean_obs[1],'Clean11':clean_obs[2],
+            'Mono':int(3 in vf),
+            'CallRate':"{0:.6f}".format(callrate),
+            'CallBad': int(callrate < (1 - cfg.miss_rate)),
+            'GATKPass':int(1 not in vf),
+            'MAF':maf,'AltAF':"{0:.6f}".format(alt_maf),
+            'MeanDepth':"{0:.6f}".format(mean_depth),'HiDepth':int(mean_depth > cfg.max_dp),
+            'ABHet':abhet,
+            'Mend_Incon':mend_errors, 'Mend_pairs':mend_pairs, 'propMI': "{0:.6f}".format(mend_errors / mend_pairs if mend_pairs >0 else 0),
+            'MultiAllele':0,'FilteredOut':int(0 not in vf),
+            'VFLAGS':",".join(map(str,vf)),
+            'rsID':rec.id if rec.id else '.',
+            'RefAllele':rec.ref,'AltAllele':",".join(map(str,rec.alts)),
+            'QUAL':"{0:.2f}".format(rec.qual),'FILTER':",".join(rec.filter.keys()),
+            'VTYPE': vtype
+            }
         row.update(scores)
         writer.writerow(row)
 
@@ -516,20 +516,34 @@ def check_mendelian_errors(prefix, rec):
                 mend_error += 1
                 found_mi_error = 1
         elif len(validparents) == 2:
-            # mend error when homozygous child that doesn't allele match homozygous parents, case 2b, 4a
-            elif (samples[kid]['GT'] in {(0,0), (1,1)}
-                and
-                (sum(samples[ validparents[0] ]['GT']) + sum(samples[ validparents[1] ]['GT']) in {0,4} )
-                and
-                (samples[kid]['GT'] != samples[ validparents[0] ]['GT'])
-                ):
+            # Two parent mendelian errors
+            # Case 1) 0/0 & 1/1: no 1/1, 0/0
+            # Case 2) 0/0 & 0/0: no 0/1, 1/1
+            # Case 3) 0/0 & 0/1: no 1/1
+            # Case 4) 1/1 & 1/1: no 0/1, 0/0
+            # Case 5) 0/1 & 1/1: no 0/0
+            sum_p_genos = sum(samples[ validparents[0] ]['GT']) + sum(samples[ validparents[1] ]['GT'])
+            sum_k_geno = sum(samples[kid]['GT'])
+
+            # case #2, 3
+            if sum_p_genos in [0, 1] and sum_k_geno > sum_p_genos:
                 mend_error += 1
                 found_mi_error = 1
-            elif sum(samples[kid]['GT']) == 1:
-            # mend_error if heterozygous child has homozygous matching parents, case #2(a)
-                if sum(samples[father]['GT']) + sum(samples[mother]['GT']) in {0,4}:
-                    mend_error += 1
-                    found_mi_error = 1
+            # case #4
+            elif sum_p_genos == 4 and sum_k_geno in [0, 1]:
+                mend_error += 1
+                found_mi_error = 1
+            # case #5
+            elif sum_p_genos == 3 and sum_k_geno == 0:
+                mend_error += 1
+                found_mi_error = 1
+            # case #1
+            elif (samples[kid]['GT'] in {(0,0), (1,1)}
+                and samples[ validparents[0] ]['GT'] != samples[ validparents[1] ]['GT']
+                and sum_p_genos == 2):
+                mend_error += 1
+                found_mi_error = 1
+
             #else: clean child
 
         mi.sa.sa_collection[kid].tallySA['mend_pair'] += 1
