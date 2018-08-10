@@ -4,7 +4,7 @@ import config as cfg
 import utils.SampleAnnotation.sample_annotation as mi
 from collections import OrderedDict
 
-def count_gt(samples,rec):
+def count_gt(samples,rec_details):
     """
     count_gt - sample genotype {0/0, 0/1, 1/1}
                Apply Genotype-level QC: DP<10, GQ<20; set to ./.
@@ -23,8 +23,8 @@ def count_gt(samples,rec):
     #subgroup_counts = OrderedDict.fromkeys(mi.sa.subgroups, [0,0,0])
     subgroup_counts = OrderedDict({key:[0,0,0] for key in mi.sa.subgroups})
 
-    ref = rec.ref
-    alt = rec.alts[0]
+    ref = rec_details['ref']
+    alt = rec_details['alt'][0]
 
     mi.sa.clear_mpairs()
 

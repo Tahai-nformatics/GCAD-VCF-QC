@@ -47,7 +47,8 @@ class SampleAnnotation:
         # tally
         self.sa_collection[sample.details_dict.SampID].tallySA = dict.fromkeys([-9, (None,None), (0,0), (0,1), (1,0), (1,1),
                                                                                 'mend_pair','vp1','vp2',
-                                                                                'ti', 'tv', 'singleton', 'p_dblton', 'doubleton'],0)
+                                                                                'ti', 'tv', 'non_missing_indel',
+                                                                                'singleton', 'p_dblton', 'doubleton'],0)
         # DP store
         self.sa_collection[sample.details_dict.SampID].dp_total = 0
 
@@ -101,8 +102,11 @@ class SampleAnnotation:
         # tally missing and good genotypes
         self.sa_collection[indiv_id].tallySA[ vsm['GT'] ] += 1
 
-    def tallyTiTv(self, indiv_id, ref, alt):
+    def tallyTiTv(self, indiv_id, ref, alt):  #non_missing_indel
         if ref==alt: return
+        if len(alt) > 1 or len(ref) > 1:
+            self.sa_collection[indiv_id].tallySA['non_missing_indel'] += 1
+            return
 
         if ref in {'A', 'G'}:
             if alt in {'A', 'G'}:
@@ -114,29 +118,6 @@ class SampleAnnotation:
                 self.sa_collection[indiv_id].tallySA['ti'] += 1
             else:
                 self.sa_collection[indiv_id].tallySA['tv'] += 1
-
-        """
-            if ref == 'G':
-                if alt == "A":
-                    self.sa_collection[indiv_id].tallySA['ti'] += 1
-                else:
-                    self.sa_collection[indiv_id].tallySA['tv'] += 1
-            elif ref ==  "C":
-                if alt == "T":
-                    self.sa_collection[indiv_id].tallySA['ti'] += 1
-                else:
-                    self.sa_collection[indiv_id].tallySA['tv'] += 1
-            elif ref ==  "A":
-                if alt == "G":
-                    self.sa_collection[indiv_id].tallySA['ti'] += 1
-                else:
-                    self.sa_collection[indiv_id].tallySA['tv'] += 1
-            elif ref ==  "T":
-                if alt == "C":
-                    self.sa_collection[indiv_id].tallySA['ti'] += 1
-                else:
-                    self.sa_collection[indiv_id].tallySA['tv'] += 1
-                    """
 
     def add_dp(self,indiv_id, dp):
         self.sa_collection[indiv_id].dp_total += dp

@@ -5,7 +5,7 @@ import config as cfg
 from utils.stats.statistical import calc_ExcessHet, calc_pHWE
 from utils.stats.count_gt import count_gt, count_gt1
 
-def calcVA(snp_samples, rec):
+def calcVA(snp_samples, rec_details):
     """
     calcVA - get Variant Annotation; VFLAGS and ABHet
     Variant-level QC
@@ -25,28 +25,28 @@ def calcVA(snp_samples, rec):
     vf = []
     pass_cnt = [0,0,0]
     fail_cnt = [0,0,0]
-    snp_record_filter = rec.filter
+    snp_record_filter = rec_details['filter']
 
     # VFLAG 1
     if 'PASS' in snp_record_filter:
         pass_snv = 1
-        mp_score = 1
-        badcall  = 0
     else:
         for k in snp_record_filter.keys():
-            if k.startswith('VQSRTrancheSNP'): # VQSRTrancheSNP99.80to99.90
-                low, high = k.replace('VQSRTrancheSNP','').split('to')
-                if float(low) >= cfg.minTranche:
-                    vf.append(1)
-                    pass_snv = 0
-                    mp_score = 0
-                    badcall  = 1
-                else:
-                    pass_snv = 1
-                    mp_score = 1
-                    badcall  = 0
+            if k.startswith('VQSRTranche'): # VQSRTrancheSNP99.80to99.90; VQSRTrancheINDEL
+                low = None
+                if k.startswith('VQSRTrancheSNP'):
+                    low, high = k.replace('VQSRTrancheSNP','').split('to')
+                elif k.startswith('VQSRTrancheINDEL'):
+                    low, high = k.replace('VQSRTrancheINDEL','').split('to')
 
-    [obs_hom1, obs_hets, obs_hom2, missing, gt_failed, depth_sum, failed, het_ad, het_dp, subg] = count_gt(snp_samples, rec)
+                if low != None:
+                    if float(low) >= cfg.minTranche:
+                        vf.append(1)
+                        pass_snv = 0
+                    else:
+                        pass_snv = 1
+
+    [obs_hom1, obs_hets, obs_hom2, missing, gt_failed, depth_sum, failed, het_ad, het_dp, subg] = count_gt(snp_samples, rec_details)
     total = obs_hom1 + obs_hets + obs_hom2 + missing + gt_failed
     non_missing = obs_hom1 + obs_hets + obs_hom2
 
@@ -63,7 +63,6 @@ def calcVA(snp_samples, rec):
     callrate = 1 - (missing + gt_failed) / total
     if callrate <= (1 - cfg.miss_rate):
         vf.append(4)
-        badcall = 1
 
     # VFLAG 5
     if non_missing > 0:
@@ -99,6 +98,10 @@ def calcVA(snp_samples, rec):
 
         #if((z_het >= 1) or (z_het < hwe_pval)):
             #vf.append(6)
+
+    # VFLAG 7
+    #if len(rec_details['alt']) > 1:
+    #    vf.append(7)
 
     # VFLAG 0
     # Presense of VFLAGs counts as failing GTs
