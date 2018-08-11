@@ -299,7 +299,7 @@ def main():
         if len(rec.alts) > 1:
             #print("Warning found multiallelic variant")
             continue
-        if ct > 10000:break
+        #if ct > 10000:break
 
         # Variant Type: SNV, MNV, insertion, deletion
         vtype = "SNV"
