@@ -253,10 +253,23 @@ def main():
     print("[FAM] {} unique subgroups:{}".format(len(mi.sa.subgroups),sorted( mi.sa.subgroups)))
     print("[FAM] {} ".format([  "{}:{}".format(k, v)  for k,v in mi.sa.subsets.items() ]))
 
+    # INPUT VCF
     vcf_in = VariantFile(args.vcf)
+    set_size_in = len(vcf_in.header.samples)
 
-    # organize new vcf header
+    # Save groups of samples as an intersecting set
+    set_size = 0
+    for k,v in samplesDict.items():
+        samplesDict[k] = {'set': set(vcf_in.header.samples) & v,'dict':dict() }
+        set_size += len(samplesDict[k]['set'])
+
+    # Read only a subset of samples
+    if set_size != set_size_in:
+        vcf_in.subset_samples(mi.sa.id_list)
+
+    # organize new vcf_out header
     vcf_out_hdr = vcf_in.header
+
     for k in samplesDict.keys():
         vcf_out_hdr.add_meta('INFO',items= [('ID', 'VFLAGS_' + k),('Number','.'),('Type','String'),('Description','Pipeline-specific QC variant flags')])
         vcf_out_hdr.add_meta('INFO',items= [('ID','ABHet_'  + k),('Number',1),('Type','Float'),('Description','Allelic Read Ratio')])
@@ -267,11 +280,6 @@ def main():
     vcf_out_hdr.add_meta('qc_tool-version', value = check_output(["git", "rev-parse", "--short", "HEAD"]).strip())
     vcf_out_hdr.add_meta('qc_tool-arguments', value = "{}".format(args))
 
-    # Output VCF
-    baseStr = os.path.basename(args.vcf.replace('.g.vcf','').replace('.vcf','').rpartition('.')[0])
-    vcf_out_filename = "{}{}".format(args.out_dir, 'flagged.' + baseStr + regionStr + '.g.vcf.gz')
-    vcf_out = VariantFile(vcf_out_filename, 'w', header = vcf_out_hdr, threads = 2)
-
     # Output filename for companions
     prefix_companions = args.out_dir + 'summary.snv' + regionStr
     # Output filename for indiv summary
@@ -279,14 +287,12 @@ def main():
     # Output filename for MI
     prefix_mi = args.out_dir + 'summary.mi' + regionStr
 
-    # Save groups of samples as an intersecting set
-    set_size = 0
-    for k,v in samplesDict.items():
-        samplesDict[k] = {'set': set(vcf_in.header.samples) & v,'dict':dict() }
-        set_size += len(samplesDict[k]['set'])
+    # Output VCF
+    baseStr = os.path.basename(args.vcf.replace('.g.vcf','').replace('.vcf','').rpartition('.')[0])
+    vcf_out_filename = "{}{}".format(args.out_dir, 'flagged.' + baseStr + regionStr + '.g.vcf.gz')
+    vcf_out = VariantFile(vcf_out_filename, 'w', header = vcf_out_hdr, threads = 2)
 
-
-    print("[VCF] contains {} samples".format(len(vcf_in.header.samples)))
+    print("[IN VCF] contains {} samples".format(set_size_in))
     print("[OUT VCF] will have {} samples from intersecting set".format(set_size))
 
 
