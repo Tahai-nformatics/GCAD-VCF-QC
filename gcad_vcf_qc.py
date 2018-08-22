@@ -222,7 +222,7 @@ def main():
 
     if args.region:
         rChr = args.region.split(':')[0]
-        rStart = int(args.region.split(':')[1].split('-')[0]) - 1
+        rStart = int(args.region.split(':')[1].split('-')[0])
         rEnd = int(args.region.split(':')[1].split('-')[1])
         regionStr = ".{}.{}-{}".format(rChr, rStart, rEnd)
 
@@ -277,7 +277,7 @@ def main():
     vcf_out_hdr.add_meta('INFO',items= [('ID','VariantType'),('Number',1),('Type','String'),('Description','Variant type description')])
 
     vcf_out_hdr.add_meta('qc_tool', value = os.path.basename(__file__))
-    vcf_out_hdr.add_meta('qc_tool-version', value = check_output(["git", "rev-parse", "--short", "HEAD"]).strip())
+    vcf_out_hdr.add_meta('qc_tool-version', value = check_output(["git","--git-dir", os.path.dirname(__file__) + "/.git", "rev-parse", "--short", "HEAD"]).strip())
     vcf_out_hdr.add_meta('qc_tool-arguments', value = "{}".format(args))
 
     # Output filename for companions
@@ -320,7 +320,7 @@ def main():
 
         for subset, sm_list in samplesDict.items():
             # calc stats
-            [vf, abhet, passing, failing, missing, gt_failed, depth_sum, clean_obs, subg] = calcVA(sm_list['dict'], {'filter':rec.filter,'ref':rec.ref,'alt':rec.alts})
+            [vf, abhet, passing, failing, missing, gt_failed, depth_sum, clean_obs, subg] = calcVA(sm_list['dict'], {'filter':rec.filter,'ref':rec.ref,'alt':rec.alts,'pos':rec.pos,})
 
             grp_obs.append(clean_obs)
 
@@ -411,36 +411,36 @@ def find_s_d(total_obs, samples):
 def find_singleton(samples):
     for k,sm in samples.items():
         if sm['GT'] in {(0,1), (1,0)}:
-            try:
-                if (sm['DP'] >= cfg.MINDP
-                    and sm['GQ'] >= cfg.MINGQ
-                    ):
+            #try:
+            #    if (sm['DP'] >= cfg.MINDP
+            #        and sm['GQ'] >= cfg.MINGQ
+            #        ):
                     return k
-            except TypeError:  #TypeError: unorderable types: NoneType() < int() (missing DP)
-                 continue
+            #except TypeError:  #TypeError: unorderable types: NoneType() < int() (missing DP)
+            #     continue
 
 def find_private_doubleton(samples, allele):
     for k,sm in samples.items():
         if sm['GT'] == (allele, allele):
-            try:
-                if (sm['DP'] >= cfg.MINDP
-                    and sm['GQ'] >= cfg.MINGQ
-                    ):
+            #try:
+            #    if (sm['DP'] >= cfg.MINDP
+            #        and sm['GQ'] >= cfg.MINGQ
+            #        ):
                     return k
-            except TypeError:  #TypeError: unorderable types: NoneType() < int() (missing DP)
-                 continue
+            #except TypeError:  #TypeError: unorderable types: NoneType() < int() (missing DP)
+            #     continue
 
 def find_doubletons(samples):
     k_list = list()
     for k,sm in samples.items():
         if sm['GT'] in {(0,1), (1,0)}:
-            try:
-                if (sm['DP'] >= cfg.MINDP
-                    and sm['GQ'] >= cfg.MINGQ
-                    ):
+            #try:
+            #    if (sm['DP'] >= cfg.MINDP
+            #        and sm['GQ'] >= cfg.MINGQ
+            #        ):
                     k_list.append(k)
-            except TypeError:  #TypeError: unorderable types: NoneType() < int() (missing DP)
-                continue
+            #except TypeError:  #TypeError: unorderable types: NoneType() < int() (missing DP)
+            #    continue
 
         if len(k_list) == 2:
             return k_list

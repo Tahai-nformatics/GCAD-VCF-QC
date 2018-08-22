@@ -52,6 +52,9 @@ def count_gt(samples,rec_details):
                     failed[2] += 1
 
                 #sm['GT'] += (0)
+                #print("{}{}".format(k,rec_details))
+                #raise
+                sm['GT'] = (None, None)
                 tallyFailed(k, sm)
                 gt_failed += 1
                 continue
@@ -65,6 +68,7 @@ def count_gt(samples,rec_details):
                 failed[2] += 1
 
             #sm['GT'] += (0)
+            sm['GT'] = (None, None)
             tallyFailed(k, sm)
             gt_failed += 1
             #raise TypeError("Weird {},{}, {}, {}".format(k,str(sm['GT']), str(sm['DP']), str(sm['AD']) ))
@@ -120,10 +124,10 @@ def is_good_gt(sm):
     try:
         if sm['GT'] == (None, None):
             return False
-        elif (sm['DP'] < cfg.MINDP
-            or sm['GQ'] < cfg.MINGQ
-            ):
-            return False
+        #elif (sm['DP'] < cfg.MINDP
+        #    or sm['GQ'] < cfg.MINGQ
+        #    ):
+        #    return False
     except TypeError:  #TypeError: unorderable types: NoneType() < int() (missing DP)
             return False
     except:
