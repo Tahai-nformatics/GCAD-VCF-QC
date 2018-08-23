@@ -21,6 +21,12 @@ class Sample:
     def get_subgroup(self):
         return self.details_dict.Subgroup
 
+    def is_control(self):
+        """
+        AFF: 0 = unknown; 1 = unaffected (controls); 2 = affected (cases)
+        """
+        return bool(self.details_dict.AFF == 1)
+
 class SampleAnnotation:
     """
     """
@@ -32,7 +38,7 @@ class SampleAnnotation:
         self.singletons = list()
         self.private_dbltons = list()
         self.dbltons = list()
-        self.subsets = defaultdict(set)
+        self.subsets = defaultdict(Counter)
         self.subgroups = set()
 
     def add_family_sample(self, sample):
@@ -53,7 +59,8 @@ class SampleAnnotation:
         self.sa_collection[sample.details_dict.SampID].dp_total = 0
 
         # store the subsets-subgroups
-        self.subsets[ sample.get_subset() ].add(sample.get_subgroup())
+#        self.subsets[ sample.get_subset() ].add(sample.get_subgroup())
+        self.subsets[ sample.get_subset() ][ sample.get_subgroup() ] += 1
 
         # store the subgroups
         self.subgroups.add( sample.get_subgroup() )
@@ -144,6 +151,15 @@ def createSampleAnnotation(fam):
         for sm in map(SampleFamDetail._make, csv.reader(fam_file, delimiter='\t')):
             sa.add_family_sample( Sample(sm) )
 
+    to_delete = list()
+    for subset, s_count in sa.subsets.items():
+        for k, v in s_count.items():
+          if v < 5:
+            to_delete.append([subset, k])
+
+    for blk in to_delete:
+        print("[FAM] Ignoring {}:{}, too few samples ({})".format(blk[0], blk[1], sa.subsets[ blk[0] ][ blk[1] ] ) )
+        del sa.subsets[ blk[0] ][ blk[1] ]
 
     return
 

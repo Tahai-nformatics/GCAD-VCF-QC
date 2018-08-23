@@ -63,7 +63,7 @@ def write_subset_stats(prefix, subset, rec, vf, abhet, passing, failing, missing
                       'MeanDepth','HiDepth','ABHet','Mend_Incon','Mend_pairs','propMI','MultiAllele','FilteredOut',
                       'VFLAGS','rsID','RefAllele','AltAllele','QUAL','FILTER','VTYPE',
                       ]
-        fieldnames.extend(scores.keys())
+        fieldnames.extend(sorted(scores.keys()))
 
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames , delimiter='\t', lineterminator='\n')
 
@@ -196,8 +196,11 @@ def main():
     grp_file_paths.add_argument('--fam', type=str, help='fam file (with headers)', required=True)
     grp_file_paths.add_argument('--out_dir', type=str, help='filepath for output file', default='./', required=False)
 
-    grp_overrides = argparser.add_argument_group(title='bcf overrides')
+    grp_overrides = argparser.add_argument_group(title='BCF Overrides')
     grp_overrides.add_argument('--region', type=str, help='restrict to VCF region e.g. chr3:100-200', default=None, required=False)
+
+    fun_overrides = argparser.add_argument_group(title='Functional Overrides')
+    fun_overrides.add_argument('--no_output_vcf', default=False, action="store_true",help='use to skip output VCF', required=False)
 
     grp_settings = argparser.add_argument_group(title='Theshold Settings')
     grp_settings.add_argument('--min_dp', type=int, help='minimum depth (DP)', default=10, required=False)
@@ -224,7 +227,7 @@ def main():
         rChr = args.region.split(':')[0]
         rStart = int(args.region.split(':')[1].split('-')[0])
         rEnd = int(args.region.split(':')[1].split('-')[1])
-        regionStr = ".{}.{}-{}".format(rChr, rStart, rEnd)
+        regionStr = ".{}:{}-{}".format(rChr, rStart, rEnd)
 
 
     cfg.MINDP = args.min_dp
@@ -287,13 +290,18 @@ def main():
     # Output filename for MI
     prefix_mi = args.out_dir + 'summary.mi' + regionStr
 
-    # Output VCF
-    baseStr = os.path.basename(args.vcf.replace('.g.vcf','').replace('.vcf','').rpartition('.')[0])
-    vcf_out_filename = "{}{}".format(args.out_dir, 'flagged.' + baseStr + regionStr + '.g.vcf.gz')
-    vcf_out = VariantFile(vcf_out_filename, 'w', header = vcf_out_hdr, threads = 2)
-
     print("[IN VCF] contains {} samples".format(set_size_in))
-    print("[OUT VCF] will have {} samples from intersecting set".format(set_size))
+
+    # Output VCF
+    if args.no_output_vcf:
+        print("No output VCF file.")
+        print("{}".format(args))
+    else:
+        baseStr = os.path.basename(args.vcf.replace('.g.vcf','').replace('.vcf','').rpartition('.')[0])
+        vcf_out_filename = "{}{}".format(args.out_dir, 'flagged.' + baseStr + regionStr + '.g.vcf.gz')
+        vcf_out = VariantFile(vcf_out_filename, 'w', header = vcf_out_hdr, threads = 2)
+
+        print("[OUT VCF] will have {} samples from intersecting set".format(set_size))
 
 
     delete_previous_outputs(args.out_dir, 'summary.snv' + regionStr, list(samplesDict.keys()))
@@ -320,7 +328,7 @@ def main():
 
         for subset, sm_list in samplesDict.items():
             # calc stats
-            [vf, abhet, passing, failing, missing, gt_failed, depth_sum, clean_obs, subg] = calcVA(sm_list['dict'], {'filter':rec.filter,'ref':rec.ref,'alt':rec.alts,})
+            [vf, abhet, passing, failing, missing, gt_failed, depth_sum, clean_obs, subg, subg_cntl] = calcVA(sm_list['dict'], {'filter':rec.filter,'ref':rec.ref,'alt':rec.alts,})
 
             grp_obs.append(clean_obs)
 
@@ -328,7 +336,7 @@ def main():
             mend_pairs, mend_errors = check_mendelian_errors(prefix_mi, rec)
 
             # pHWE per subgroup
-            scores = calculate_subgroup_scores(subset, subg)
+            scores = calculate_subgroup_scores(subset, subg, subg_cntl)
 
             # Companion file
             write_subset_stats(prefix_companions, subset, rec, vf, abhet,
@@ -349,28 +357,33 @@ def main():
 
         find_s_d(total_obs, rec.samples)
 
-        vcf_out.write(rec)
+        if args.no_output_vcf == False:
+            vcf_out.write(rec)
+
         #print()
         ct += 1
 
-    vcf_out.close()
+    if args.no_output_vcf == False: vcf_out.close()
+
     end = time.time()
     print("{0:.2f}".format(end - start))
     write_indiv_summary(prefix_indiv)
 
-    # create index
-    time.sleep(1)
-    check_output(["tabix", "-f", vcf_out_filename])
+    if args.no_output_vcf == False:
+        # create index
+        time.sleep(1)
+        check_output(["tabix", "-f", vcf_out_filename])
 
-def calculate_subgroup_scores(subset, subg):
+def calculate_subgroup_scores(subset, subg, subg_cntl):
     """
     """
     scores = OrderedDict()
     for k in mi.sa.subsets[subset]:
         val = subg[k]
+        val_cntl = subg_cntl[k]
         scores['nClean_' + k] = sum(val) #",".join(map(str,val)),
         scores['Zhet_' + k] = calc_ExcessHet(*val)[0]
-        scores['pHWE_' + k] = calc_pHWE(*val)
+        scores['pHWE_' + k] = calc_pHWE(*val_cntl)
         if type(scores['Zhet_' + k]) == float:
             scores['Zhet_' + k] = "{0:.6f}".format(scores['Zhet_' + k])
         if type(scores['pHWE_' + k]) == float:
