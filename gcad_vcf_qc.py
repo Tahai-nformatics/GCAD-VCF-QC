@@ -320,7 +320,7 @@ def main():
 
         for subset, sm_list in samplesDict.items():
             # calc stats
-            [vf, abhet, passing, failing, missing, gt_failed, depth_sum, clean_obs, subg] = calcVA(sm_list['dict'], {'filter':rec.filter,'ref':rec.ref,'alt':rec.alts,'pos':rec.pos,})
+            [vf, abhet, passing, failing, missing, gt_failed, depth_sum, clean_obs, subg] = calcVA(sm_list['dict'], {'filter':rec.filter,'ref':rec.ref,'alt':rec.alts,})
 
             grp_obs.append(clean_obs)
 
@@ -411,36 +411,36 @@ def find_s_d(total_obs, samples):
 def find_singleton(samples):
     for k,sm in samples.items():
         if sm['GT'] in {(0,1), (1,0)}:
-            #try:
-            #    if (sm['DP'] >= cfg.MINDP
-            #        and sm['GQ'] >= cfg.MINGQ
-            #        ):
+            try:
+                if (sm['DP'] >= cfg.MINDP
+                    and sm['GQ'] >= cfg.MINGQ
+                    ):
                     return k
-            #except TypeError:  #TypeError: unorderable types: NoneType() < int() (missing DP)
-            #     continue
+            except TypeError:  #TypeError: unorderable types: NoneType() < int() (missing DP)
+                 continue
 
 def find_private_doubleton(samples, allele):
     for k,sm in samples.items():
         if sm['GT'] == (allele, allele):
-            #try:
-            #    if (sm['DP'] >= cfg.MINDP
-            #        and sm['GQ'] >= cfg.MINGQ
-            #        ):
+            try:
+                if (sm['DP'] >= cfg.MINDP
+                    and sm['GQ'] >= cfg.MINGQ
+                    ):
                     return k
-            #except TypeError:  #TypeError: unorderable types: NoneType() < int() (missing DP)
-            #     continue
+            except TypeError:  #TypeError: unorderable types: NoneType() < int() (missing DP)
+                 continue
 
 def find_doubletons(samples):
     k_list = list()
     for k,sm in samples.items():
         if sm['GT'] in {(0,1), (1,0)}:
-            #try:
-            #    if (sm['DP'] >= cfg.MINDP
-            #        and sm['GQ'] >= cfg.MINGQ
-            #        ):
+            try:
+                if (sm['DP'] >= cfg.MINDP
+                    and sm['GQ'] >= cfg.MINGQ
+                    ):
                     k_list.append(k)
-            #except TypeError:  #TypeError: unorderable types: NoneType() < int() (missing DP)
-            #    continue
+            except TypeError:  #TypeError: unorderable types: NoneType() < int() (missing DP)
+                continue
 
         if len(k_list) == 2:
             return k_list

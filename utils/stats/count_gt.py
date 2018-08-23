@@ -124,10 +124,10 @@ def is_good_gt(sm):
     try:
         if sm['GT'] == (None, None):
             return False
-        #elif (sm['DP'] < cfg.MINDP
-        #    or sm['GQ'] < cfg.MINGQ
-        #    ):
-        #    return False
+        elif (sm['DP'] < cfg.MINDP
+            or sm['GQ'] < cfg.MINGQ
+            ):
+            return False
     except TypeError:  #TypeError: unorderable types: NoneType() < int() (missing DP)
             return False
     except:
