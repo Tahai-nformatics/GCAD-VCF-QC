@@ -228,6 +228,8 @@ def main():
         rStart = int(args.region.split(':')[1].split('-')[0])
         rEnd = int(args.region.split(':')[1].split('-')[1])
         regionStr = ".{}:{}-{}".format(rChr, rStart, rEnd)
+        rStart -= 1
+        if rStart < 0: rStart = 0
 
 
     cfg.MINDP = args.min_dp
