@@ -24,10 +24,9 @@ import warnings
 warnings.simplefilter('always')
 
 
-
-def extractSubSets(fam):
+def extract_subsets(fam):
     """
-    extractSubSets - Creates an OrderedDict() where Subset groupings are the key, 
+    extract_subsets - Creates an OrderedDict() where Subset groupings are the key,
                      values are SampID within it
     @return Samples Dict per Subset
     """
@@ -47,12 +46,12 @@ def extractSubSets(fam):
             ct += 1
     return samples, ct
 
+
 def write_subset_stats(prefix, subset, rec, vf, abhet, passing, failing, missing, gt_failed, depth_sum, clean_obs, mend_pairs, mend_errors, scores, vtype):
     """
     """
     outfile = '{}.{}.tsv'.format(prefix, subset)
     newfile = not os.path.exists(outfile)
-
 
     with open(outfile, 'a') as csvfile:
         fieldnames = ['CHR','POS',
@@ -118,6 +117,7 @@ def write_subset_stats(prefix, subset, rec, vf, abhet, passing, failing, missing
 
     return
 
+
 def write_mendelian_errors(prefix, rec, fam_info, genos ): # mmmm, genos
     """
     """
@@ -138,6 +138,7 @@ def write_mendelian_errors(prefix, rec, fam_info, genos ): # mmmm, genos
                          'P2GT': "/".join(map(str,genos[1])),
                          'CGT': "/".join(map(str,genos[2]))
                          })
+
 
 def write_indiv_summary(prefix):
     """
@@ -167,15 +168,15 @@ def write_indiv_summary(prefix):
             good_gt = val.tallySA[(0,0)] + good_het_gt + val.tallySA[(1,1)]
             mean_depth = val.dp_total / good_gt if good_gt else 0
 
-            writer.writerow({'SampleID': indiv, 'SEX':val.details_dict.SEX,
+            writer.writerow({'SampleID': indiv, 'SEX': val.details_dict.SEX,
                             'total_nRR': val.tallySA[(0,0)],'total_nRA': good_het_gt,'total_nAA': val.tallySA[(1,1)],
                             'Missing': val.tallySA[(None,None)],'Set_Missing': val.tallySA[-9],
                             'Singleton': val.tallySA['singleton'],
                             'Private_Doubleton': val.tallySA['p_dblton'],
                             'Doubleton': val.tallySA['doubleton'],
                             'HetHom':"{0:.2f}".format(het_hom),
-                            'Ti':val.tallySA['ti'], 'Tv':val.tallySA['tv'], 'TiTvRatio':"{0:.2f}".format(ti_tv),'IndMeanDepth':"{0:.2f}".format(mean_depth),
-                            '1P_MI':val.tallySA['vp1'],'2P_MI':val.tallySA['vp2'],'MI_pairs':val.tallySA['mend_pair'],
+                            'Ti': val.tallySA['ti'], 'Tv': val.tallySA['tv'], 'TiTvRatio':"{0:.2f}".format(ti_tv),'IndMeanDepth':"{0:.2f}".format(mean_depth),
+                            '1P_MI': val.tallySA['vp1'],'2P_MI':val.tallySA['vp2'],'MI_pairs':val.tallySA['mend_pair'],
                             'Non_Missing_Indels': val.tallySA['non_missing_indel']
                             })
 
@@ -188,6 +189,7 @@ def delete_previous_outputs(out_dir, prefix, subsets):
         if os.path.exists(out_file):
             os.remove(out_file)
     return
+
 
 def main():
     argparser = ArgumentParser()
@@ -216,7 +218,7 @@ def main():
 
     args, extr = argparser.parse_known_args()
 
-    ct=0
+    ct = 0
     start = time.time()
     rChr = None
     rStart = None
@@ -231,7 +233,7 @@ def main():
         rStart -= 1
         if rStart < 0: rStart = 0
 
-
+    # Setup globals
     cfg.MINDP = args.min_dp
     cfg.MINGQ = args.min_gq
     cfg.minTranche = args.min_tranche
@@ -249,9 +251,9 @@ def main():
     if not os.path.isdir(args.out_dir):
         os.makedirs(args.out_dir, exist_ok = True)
 
-
+    # Create global sample data in mi
     mi.createSampleAnnotation(args.fam)
-    samplesDict, famCt = extractSubSets(args.fam) # returns dict
+    samplesDict, famCt = extract_subsets(args.fam)  # returns dict
 
     print("[FAM] Found {} subsets: {}; totaling {} sampIDs".format(len(samplesDict.keys()), list(samplesDict.keys()), famCt))
     print("[FAM] {}".format([  "{}:{}".format(k, len(samplesDict[k]))  for k in samplesDict.keys()]))
@@ -276,14 +278,14 @@ def main():
     vcf_out_hdr = vcf_in.header
 
     for k in samplesDict.keys():
-        vcf_out_hdr.add_meta('INFO',items= [('ID', 'VFLAGS_' + k),('Number','.'),('Type','String'),('Description','Pipeline-specific QC variant flags')])
-        vcf_out_hdr.add_meta('INFO',items= [('ID','ABHet_'  + k),('Number',1),('Type','Float'),('Description','Allelic Read Ratio')])
+        vcf_out_hdr.add_meta('INFO', items=[('ID', 'VFLAGS_' + k), ('Number','.'), ('Type', 'Integer'), ('Description','Pipeline-specific QC variant flags')])
+        vcf_out_hdr.add_meta('INFO', items=[('ID', 'ABHet_' + k), ('Number',1), ('Type', 'Float'), ('Description','Allelic Read Ratio')])
 
-    vcf_out_hdr.add_meta('INFO',items= [('ID','VariantType'),('Number',1),('Type','String'),('Description','Variant type description')])
+    vcf_out_hdr.add_meta('INFO', items=[('ID', 'VariantType'), ('Number',1), ('Type', 'String'), ('Description','Variant type description')])
 
-    vcf_out_hdr.add_meta('qc_tool', value = os.path.basename(__file__))
-    vcf_out_hdr.add_meta('qc_tool-version', value = check_output(["git","--git-dir", os.path.dirname(__file__) + "/.git", "rev-parse", "--short", "HEAD"]).strip())
-    vcf_out_hdr.add_meta('qc_tool-arguments', value = "{}".format(args))
+    vcf_out_hdr.add_meta('qc_tool', value=os.path.basename(__file__))
+    vcf_out_hdr.add_meta('qc_tool-version', value=check_output(["git", "--git-dir", os.path.dirname(__file__) + "/.git", "rev-parse", "--short", "HEAD"]).strip())
+    vcf_out_hdr.add_meta('qc_tool-arguments', value="{}".format(args))
 
     # Output filename for companions
     prefix_companions = args.out_dir + 'summary.snv' + regionStr
@@ -301,10 +303,9 @@ def main():
     else:
         baseStr = os.path.basename(args.vcf.replace('.g.vcf','').replace('.vcf','').rpartition('.')[0])
         vcf_out_filename = "{}{}".format(args.out_dir, 'flagged.' + baseStr + regionStr + '.g.vcf.gz')
-        vcf_out = VariantFile(vcf_out_filename, 'w', header = vcf_out_hdr, threads = 2)
+        vcf_out = VariantFile(vcf_out_filename, 'w', header=vcf_out_hdr, threads=2)
 
         print("[OUT VCF] will have {} samples from intersecting set".format(set_size))
-
 
     delete_previous_outputs(args.out_dir, 'summary.snv' + regionStr, list(samplesDict.keys()))
 
@@ -376,6 +377,7 @@ def main():
         time.sleep(1)
         check_output(["tabix", "-f", vcf_out_filename])
 
+
 def calculate_subgroup_scores(subset, subg, subg_cntl):
     """
     """
@@ -383,7 +385,7 @@ def calculate_subgroup_scores(subset, subg, subg_cntl):
     for k in mi.sa.subsets[subset]:
         val = subg[k]
         val_cntl = subg_cntl[k]
-        scores['nClean_' + k] = sum(val) #",".join(map(str,val)),
+        scores['nClean_' + k] = sum(val) # ",".join(map(str,val)),
         scores['Zhet_' + k] = calc_ExcessHet(*val)[0]
         scores['pHWE_' + k] = calc_pHWE(*val_cntl)
         if type(scores['Zhet_' + k]) == float:
@@ -393,6 +395,7 @@ def calculate_subgroup_scores(subset, subg, subg_cntl):
 
     return scores
 
+
 def find_s_d(total_obs, samples):
     """
     """
@@ -400,7 +403,7 @@ def find_s_d(total_obs, samples):
     if sum(total_obs) > 0:
         maf = (total_obs[1] + 2 * total_obs[2]) / (2 * sum(total_obs))
     if maf <= 0.5:
-        #singleton
+        # singleton
         if total_obs[1] == 1 and total_obs[2] == 0:
             idv = find_singleton(samples)
             if idv: mi.sa.sa_collection[idv].tallySA['singleton'] += 1
@@ -423,27 +426,28 @@ def find_s_d(total_obs, samples):
             for idv in dbltons:
                 mi.sa.sa_collection[idv].tallySA['doubleton'] += 1
 
+
 def find_singleton(samples):
-    for k,sm in samples.items():
+    for k, sm in samples.items():
         if sm['GT'] in {(0,1), (1,0)}:
             try:
                 if (sm['DP'] >= cfg.MINDP
-                    and sm['GQ'] >= cfg.MINGQ
-                    ):
-                    return k
-            except TypeError:  #TypeError: unorderable types: NoneType() < int() (missing DP)
-                 continue
+                   and sm['GQ'] >= cfg.MINGQ):
+                        return k
+            except TypeError:  # TypeError: unorderable types: NoneType() < int() (missing DP)
+                continue
+
 
 def find_private_doubleton(samples, allele):
-    for k,sm in samples.items():
+    for k, sm in samples.items():
         if sm['GT'] == (allele, allele):
             try:
                 if (sm['DP'] >= cfg.MINDP
-                    and sm['GQ'] >= cfg.MINGQ
-                    ):
+                   and sm['GQ'] >= cfg.MINGQ):
                     return k
-            except TypeError:  #TypeError: unorderable types: NoneType() < int() (missing DP)
-                 continue
+            except TypeError:  # TypeError: unorderable types: NoneType() < int() (missing DP)
+                continue
+
 
 def find_doubletons(samples):
     k_list = list()
@@ -451,8 +455,7 @@ def find_doubletons(samples):
         if sm['GT'] in {(0,1), (1,0)}:
             try:
                 if (sm['DP'] >= cfg.MINDP
-                    and sm['GQ'] >= cfg.MINGQ
-                    ):
+                   and sm['GQ'] >= cfg.MINGQ):
                     k_list.append(k)
             except TypeError:  #TypeError: unorderable types: NoneType() < int() (missing DP)
                 continue
@@ -461,56 +464,18 @@ def find_doubletons(samples):
             return k_list
 
     return k_list
+
+
 def gather_intersect_fam_vcf_samples(vcf_samples, fam_samples):
     """
     """
-    # Method 1
-    #for sm_list in extraction_set:
-    #    vf = calcVFlags1(rec.samples, rec.filter, sm_list)
-    #    print("VFLAGS_{}={};".format('', vf), end='')
-
-    # Method 2
-    #for subset, sm_list in samplesDict.items():
-
-        #gss = dict() # slice rec samples
-        #for key,sm in rec.samples.items():
-            #if key not in sm_list: continue ## !SLOW!
-            #gss[key] = sm
-
-        #vf = calcVFlags(gss, rec.filter)
-
-        #   print("VFLAGS_{}={};".format(subset,vf), end='')
-
-    #print()
-
-    # Method 3
-    #for key,sm in rec.samples.items():
-        #for subset, sm_list in samplesDict.items():
-            #if key in sm_list['list']: ## !SLOW!
-                #samplesDict[subset]['dict'][key] = sm
-
-    #for subset, sm_list in samplesDict.items():
-        #vf = calcVFlags(sm_list['dict'], rec.filter)
-        #print("VFLAGS_{}={};".format(subset, vf), end='')
-
-    # Method 4 - set()
-    #for subset, sm_set in samplesDict.items():
-
-        #gss = dict() # slice rec samples
-        #for key,sm in rec.samples.items():
-
-            #if key in sm_set:
-                #gss[key] = sm
-
-        #vf = calcVFlags(gss, rec.filter)
-        #print("VFLAGS_{}={};".format(subset, vf), end='')
-
     # Method 5 - set, one pass
     for key,sm in vcf_samples.items():
         for subset, sm_set in fam_samples.items():
             if key in sm_set['set']:
                 fam_samples[subset]['dict'][key] = sm
     return fam_samples
+
 
 def check_mendelian_errors(prefix, rec):
     """
@@ -590,6 +555,7 @@ def check_mendelian_errors(prefix, rec):
 
     return mend_pairs, mend_error
 
+
 if __name__ == "__main__":
     main()
-    #cProfile.run('main()', None, 'tottime')
+    # cProfile.run('main()', None, 'tottime')
