@@ -4,7 +4,6 @@
 from argparse import ArgumentParser
 from pysam import VariantFile
 
-#import configparser
 import csv
 import os
 from subprocess import check_output
@@ -13,7 +12,7 @@ from collections import namedtuple, OrderedDict, Counter
 import time
 import cProfile
 
-from utils.VariantAnnotation.vflags import calcVA
+from utils.VariantAnnotation.vflags import calcVA, read_target_files
 from utils.stats.count_gt import is_good_gt
 from utils.stats.statistical import calc_ExcessHet, calc_pHWE
 
@@ -202,9 +201,9 @@ def main():
     grp_overrides.add_argument('--region', type=str, help='restrict to VCF region e.g. chr3:100-200', default=None, required=False)
 
     fun_overrides = argparser.add_argument_group(title='Functional Overrides')
-    fun_overrides.add_argument('--no_output_vcf', default=False, action="store_true",help='use to skip output VCF', required=False)
+    fun_overrides.add_argument('--no_output_vcf', default=False, action="store_true", help='use to skip output VCF', required=False)
 
-    grp_settings = argparser.add_argument_group(title='Theshold Settings')
+    grp_settings = argparser.add_argument_group(title='Threshold Settings')
     grp_settings.add_argument('--min_dp', type=int, help='minimum depth (DP)', default=10, required=False)
     grp_settings.add_argument('--min_gq', type=int, help='maximum genotype quality (GQ)', default=20, required=False)
     grp_settings.add_argument('--is_fam', type=int, help='is this family data, 1=yes, 0=no', default=1, required=False)
@@ -216,7 +215,13 @@ def main():
     grp_settings.add_argument('--hwe_pval', type=int, help='', default=5e-06, required=False)
     grp_settings.add_argument('--hwe_maf', type=int, help='MAF threshold', default=0.01, required=False)
 
-    args, extr = argparser.parse_known_args()
+    wes_settings = argparser.add_argument_group(title='WES Settings')
+    wes_settings.add_argument('--wes_target', type=str, help='WES Target BED file, e.g. filename:subset ', action='append', required=False)
+    wes_settings.add_argument('--flank_size', type=int, help='size of target interval expansion in bp', default=7, required=False)
+
+    args, xtra = argparser.parse_known_args()
+    print(args)
+    print(xtra)
 
     ct = 0
     start = time.time()
@@ -244,6 +249,11 @@ def main():
     cfg.hetz_lim2 = args.hetz_lim2
     cfg.hwe_pval = args.hwe_pval
     cfg.hwe_maf = args.hwe_maf
+    cfg.flank_size = args.flank_size
+
+    # Process WES TARGET BED(s)
+    if len(args.wes_target) > 0:
+        read_target_files(args.wes_target, rChr)
 
     # setup output_dir
     if not args.out_dir.endswith("/"): args.out_dir += "/"
@@ -309,6 +319,7 @@ def main():
 
     delete_previous_outputs(args.out_dir, 'summary.snv' + regionStr, list(samplesDict.keys()))
 
+    # loop over each variant in VCF
     for rec in vcf_in.fetch(rChr, rStart, rEnd):
         #vcf_out.write(rec)
 
@@ -331,7 +342,13 @@ def main():
 
         for subset, sm_list in samplesDict.items():
             # calc stats
-            [vf, abhet, passing, failing, missing, gt_failed, depth_sum, clean_obs, subg, subg_cntl] = calcVA(sm_list['dict'], {'filter':rec.filter,'ref':rec.ref,'alt':rec.alts,})
+            [vf, abhet, passing, failing, missing, gt_failed, depth_sum, clean_obs, subg, subg_cntl] = calcVA(
+                sm_list['dict'],
+                {'filter': rec.filter, 'ref': rec.ref, 'alt': rec.alts,
+                 'chr': rec.contig, 'pos': rec.pos
+                 },
+                subset
+            )
 
             grp_obs.append(clean_obs)
 

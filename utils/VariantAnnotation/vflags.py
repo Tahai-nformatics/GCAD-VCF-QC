@@ -1,11 +1,14 @@
 #!/usr/bin/env python3
 
 import config as cfg
+import csv
+#from utils.stats.statistical import calc_ExcessHet, calc_pHWE
+from utils.stats.count_gt import count_gt
 
-from utils.stats.statistical import calc_ExcessHet, calc_pHWE
-from utils.stats.count_gt import count_gt, count_gt1
+# global dictionary containing target intervals used in WES QC
+targets = dict()
 
-def calcVA(snp_samples, rec_details):
+def calcVA(snp_samples, rec_details, subset):
     """
     calcVA - get Variant Annotation; VFLAGS and ABHet
     Variant-level QC
@@ -16,11 +19,10 @@ def calcVA(snp_samples, rec_details):
     VFLAG 5: Mean Depth >500, yes?
     VFLAG 6: Departure from Expected Genotype Distribution: Family data -> Excess Heterozygosity; Unrelated -> Hardy-Weinberg equilibrium if MAF>0.01
     VFLAG 7? is multiallelic==1 
-    VFLAG 11? WES
+    VFLAG 11: WES; Does  this  variant  fall  within  the  provided  target  capture  regions, no?
     VFLAG 12? ABHet outside limits
     VFLAG 0: With none of the above
     """
-    #global isFam, minTranche, miss_rate, max_dp, hetz_lim1, hetz_lim2, hwe_pval, hwe_maf
 
     vf = []
     pass_cnt = [0,0,0]
@@ -39,7 +41,7 @@ def calcVA(snp_samples, rec_details):
                 elif k.startswith('VQSRTrancheINDEL'):
                     low, high = k.replace('VQSRTrancheINDEL','').split('to')
 
-                if low != None:
+                if low is not None:
                     if float(low) >= cfg.minTranche:
                         vf.append(1)
                         pass_snv = 0
@@ -103,8 +105,53 @@ def calcVA(snp_samples, rec_details):
     #if len(rec_details['alt']) > 1:
     #    vf.append(7)
 
+    # VFLAG 11
+    if targets and subset in targets[rec_details['chr']]:
+        variant_bin = reg2bin(rec_details['pos'], rec_details['pos'])
+
+        # simple case: bin is not in targets dict
+        if variant_bin not in targets[rec_details['chr']][subset]:
+            vf.append(11)
+        else:
+            in_region = False
+            is_insertion = len(rec_details['alt'][0]) - 1
+            is_deletion = len(rec_details['ref']) - 1
+
+            for interval in targets[rec_details['chr']][subset][variant_bin]:
+
+                if is_insertion or is_deletion:
+
+                    lower_bound = rec_details['pos'] - is_deletion
+                    upper_bound = rec_details['pos'] + is_insertion
+
+                    # signal if the indel is contained within the target
+                    if interval[0] <= lower_bound <= interval[1]:
+                        in_region = True
+                        break
+
+                    if interval[0] <= upper_bound <= interval[1]:
+                        in_region = True
+                        break
+
+                    # also signal if the target is within the interval
+                    if lower_bound <= interval[0] <= upper_bound:
+                        in_region = True
+                        break
+
+                    if lower_bound <= interval[1] <= upper_bound:
+                        in_region = True
+                        break
+
+                else:
+                    if interval[0] <= rec_details['pos'] <= interval[1]:
+                        in_region = True
+                        break
+
+            if not in_region:
+                vf.append(11)
+
     # VFLAG 0
-    # Presense of VFLAGs counts as failing GTs
+    # Presence of VFLAGs counts as failing GTs
     if len(vf) < 1:
         vf.append(0)
 
@@ -124,117 +171,60 @@ def calcVA(snp_samples, rec_details):
 
     return [vf, ab_het, pass_cnt, fail_cnt, missing, gt_failed, depth_sum, clean_obs, subg, subg_c]
 
-# deprecated
-def calcVFlags1(snp_samples, snp_record_filter, samples_list):
-    """
-    Variant-level QC
-    VFLAG 1: Does variant PASS according to GATK, No=1 (fail)
-    VFLAG 2: After genotype-level QC, no?
-    VFLAG 3: Monomorphic, yes?
-    VFLAG 4: Call Rate <80%, yes?
-    VFLAG 5: Mean Depth >500, yes?
-    VFLAG 6: Departure from Expected Genotype Distribution: Family data -> Excess Heterozygosity; Unrelated -> Hardy-Weinberg equilibrium if MAF>0.01
-    VFLAG 7? is multiallelic==1 
-    VFLAG 11? WES
-    VFLAG 12? ABHet limit
-    """
-    global isFam, minTranche, miss_rate, max_dp, hetz_lim1, hetz_lim2, hwe_pval, hwe_maf
 
-    vf = []
+def read_target_files(target_list, chr):
+    """
+    read_target_files - read-in BED files for WES VFLAG 11
+    :param targets: list of BED files
+    :param chr: optional chromosome region restriction
+    """
 
-    # VFLAG 1
-    if 'PASS' in snp_record_filter:
-        pass_snv = 1
-        mp_score = 1
-        badcall  = 0
-    else:
-        for k in snp_record_filter.keys():
-            if k.startswith('VQSRTrancheSNP'): # VQSRTrancheSNP99.80to99.90
-                low, high = k.replace('VQSRTrancheSNP','').split('to')
-                if float(low) >= minTranche:
-                    vf.append(1)
-                    pass_snv = 0
-                    mp_score = 0
-                    badcall  = 1
+    for trgt_str in target_list:
+        trgt = trgt_str.split(':')
+
+        if len(trgt) > 1:
+            subset = trgt[1]
+
+            if chr not in targets:
+                targets[chr] = {subset: dict()}
+
+        else:
+            raise ValueError("WES target file missing subset assignment")
+
+        with open(trgt[0]) as tsv_file:
+            bed_reader = csv.reader(tsv_file, delimiter=' ')
+            for row in bed_reader:
+                f_chr = row[0]
+                f_start = int(row[1]) - cfg.flank_size
+                f_end = int(row[2]) + cfg.flank_size
+                if chr:
+                    if f_chr != chr: continue
                 else:
-                    pass_snv = 1
-                    mp_score = 1
-                    badcall  = 0
-    # VFLAG 2
-    [obs_hom1, obs_hets, obs_hom2, missing, depth_sum] = count_gt1(snp_samples, samples_list)
-    total = obs_hom1 + obs_hets + obs_hom2 + missing
-    if missing == total:
-        vf.append(2)
+                    if f_chr not in targets:
+                        targets[f_chr] = {subset: dict()}
 
-    # VFLAG 3
-    if obs_hets == 0:
-        if obs_hom2 ==0 or obs_hom1 == 0:
-            vf.append(3)
+                region_bin = reg2bin(f_start, f_end)
 
-    # VFLAG 4
-    callrate = 1 - missing / total
-    if callrate <= miss_rate:
-        vf.append(4)
-        badcall = 1
+                if region_bin in targets[f_chr][subset]:
+                    targets[f_chr][subset][region_bin].append([f_start, f_end])
+                else:
+                    targets[f_chr][subset][region_bin] = list([[f_start, f_end]])
 
-    # VFLAG 5
-    if depth_sum > max_dp:
-        vf.append(5)
-
-    # VFLAG 6
-    if obs_hom1 + obs_hets + obs_hom2 > 0:
-        maf = (obs_hets + (2 * obs_hom2)) / (2*(obs_hom1 + obs_hets + obs_hom2))
-        #if (maf > 0.5):
-        #        maf = 1 - maf
-    else:
-        maf = 0
-
-    if isFam:
-        z_het, hetz_maf = calc_ExcessHet(obs_hom1, obs_hets, obs_hom2)
-        if z_het == '.': z_het = 0
-
-        if   ((maf <  0.2  or maf  > 0.8) and (abs(float(z_het)) > hetz_lim1)):
-            vf.append(6)
-        elif ((maf >= 0.2 and maf <= 0.8) and (abs(float(z_het)) > hetz_lim2)):
-            vf.append(6)
-
-    else:
-        z_het = '.'
-
-        if (2 * (obs_hets + obs_hom1 + obs_hom2)) > 0:
-            if (maf > 0.5):
-                maf = 1 - maf
-
-            # Calc Hardy-Weinberg equilibrium if MAF>0.01
-            if maf > hwe_maf:
-                z_het = calc_pHWE(obs_hom1, obs_hets, obs_hom2)
-
-        if((z_het >= 1) or (z_het < hwe_pval)):
-            vf.append(6)
-
-    return vf
+    return
 
 
-def applyGenotypeQC(samples):
+def reg2bin(beg, end):
     """
-    applyGenotypeQC -
+    reg2bin - convert region to bin, adapted from genomic interval conversion to bin position
+    :param beg: region start
+    :param end: region end
+    :return: bin
     """
-    global MINDP, MINGQ
-    ct = 0
-    for k,sm in samples.items():
-
-        try:
-            if (sm['DP'] < MINDP
-                or sm['GQ'] < MINGQ
-                ):
-                sm['GT'] = (None, None)
-                ct += 1
-        except TypeError:  #TypeError: unorderable types: NoneType() < int() (missing DP)
-            sm['GT'] = (None, None)
-            ct += 1
-        except:
-            raise
-
-    return ct
-
+    end -= 1
+    if beg >> 14 == end >> 14: return int(((1 << 15)-1) / 7 + (beg >> 14))
+    if beg >> 17 == end >> 17: return int(((1 << 12)-1) / 7 + (beg >> 17))
+    if beg >> 20 == end >> 20: return int(((1 << 9)-1) / 7 + (beg >> 20))
+    if beg >> 23 == end >> 23: return int(((1 << 6)-1) / 7 + (beg >> 23))
+    if beg >> 26 == end >> 26: return int(((1 << 3)-1) / 7 + (beg >> 26))
+    return 0
 

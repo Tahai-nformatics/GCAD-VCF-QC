@@ -12,3 +12,4 @@ isFam = 1
 hetz_lim1 = 99999
 hetz_lim2 = 99999
 hwe_pval = 5e-06
+flank_size = 7
