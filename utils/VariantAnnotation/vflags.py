@@ -18,7 +18,7 @@ def calcVA(snp_samples, rec_details, subset):
     VFLAG 4: Call Rate <80%, yes?
     VFLAG 5: Mean Depth >500, yes?
     VFLAG 6: Departure from Expected Genotype Distribution: Family data -> Excess Heterozygosity; Unrelated -> Hardy-Weinberg equilibrium if MAF>0.01
-    VFLAG 7? is multiallelic==1 
+    VFLAG 7? is multiallelic==1
     VFLAG 11: WES; Does  this  variant  fall  within  the  provided  target  capture  regions, no?
     VFLAG 12? ABHet outside limits
     VFLAG 0: With none of the above
@@ -191,9 +191,10 @@ def read_target_files(target_list, chr):
         else:
             raise ValueError("WES target file missing subset assignment")
 
-        with open(trgt[0]) as tsv_file:
-            bed_reader = csv.reader(tsv_file, delimiter=' ')
-            for row in bed_reader:
+        with open(trgt[0]) as bed_file:
+
+            for bed_line in bed_file:
+                row = bed_line.split()
                 f_chr = row[0]
                 f_start = int(row[1]) - cfg.flank_size
                 f_end = int(row[2]) + cfg.flank_size
@@ -204,6 +205,9 @@ def read_target_files(target_list, chr):
                         targets[f_chr] = {subset: dict()}
 
                 region_bin = reg2bin(f_start, f_end)
+
+                if subset not in targets[f_chr]:
+                    targets[f_chr][subset] = dict()
 
                 if region_bin in targets[f_chr][subset]:
                     targets[f_chr][subset][region_bin].append([f_start, f_end])
