@@ -216,7 +216,7 @@ def main():
     grp_settings.add_argument('--hwe_maf', type=int, help='MAF threshold', default=0.01, required=False)
 
     wes_settings = argparser.add_argument_group(title='WES Settings')
-    wes_settings.add_argument('--wes_target', type=str, help='WES Target BED file, e.g. filename:subset ', action='append', required=False)
+    wes_settings.add_argument('--wes_target', type=str, help='WES Target BED file, e.g. filename:subset ', nargs='*', required=False)
     wes_settings.add_argument('--flank_size', type=int, help='size of target interval expansion in bp', default=7, required=False)
 
     args, xtra = argparser.parse_known_args()
@@ -251,10 +251,6 @@ def main():
     cfg.hwe_maf = args.hwe_maf
     cfg.flank_size = args.flank_size
 
-    # Process WES TARGET BED(s)
-    if len(args.wes_target) > 0:
-        read_target_files(args.wes_target, rChr)
-
     # setup output_dir
     if not args.out_dir.endswith("/"): args.out_dir += "/"
 
@@ -284,11 +280,16 @@ def main():
     if set_size != set_size_in:
         vcf_in.subset_samples(mi.sa.id_list)
 
+    # Process WES TARGET BED(s)
+    if len(args.wes_target) > 0:
+        print("[WES] Reading-in target interval files for subsets: {}".format(args.wes_target))
+        read_target_files(args.wes_target, rChr)
+
     # organize new vcf_out header
     vcf_out_hdr = vcf_in.header
 
     for k in samplesDict.keys():
-        vcf_out_hdr.add_meta('INFO', items=[('ID', 'VFLAGS_' + k), ('Number','.'), ('Type', 'Integer'), ('Description','Pipeline-specific QC variant flags')])
+        vcf_out_hdr.add_meta('INFO', items=[('ID', 'VFLAGS_' + k), ('Number','.'), ('Type', 'String'), ('Description','Pipeline-specific QC variant flags')])
         vcf_out_hdr.add_meta('INFO', items=[('ID', 'ABHet_' + k), ('Number',1), ('Type', 'Float'), ('Description','Allelic Read Ratio')])
 
     vcf_out_hdr.add_meta('INFO', items=[('ID', 'VariantType'), ('Number',1), ('Type', 'String'), ('Description','Variant type description')])
