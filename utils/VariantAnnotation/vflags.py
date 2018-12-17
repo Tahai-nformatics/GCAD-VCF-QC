@@ -119,10 +119,10 @@ def calcVA(snp_samples, rec_details, subset):
 
             for interval in targets[rec_details['chr']][subset][variant_bin]:
 
-                if is_insertion or is_deletion:
+                if is_deletion:
 
-                    lower_bound = rec_details['pos'] - is_deletion
-                    upper_bound = rec_details['pos'] + is_insertion
+                    lower_bound = rec_details['pos']
+                    upper_bound = rec_details['pos'] + is_deletion
 
                     # signal if the indel is contained within the target
                     if interval[0] <= lower_bound <= interval[1]:
