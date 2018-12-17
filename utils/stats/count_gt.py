@@ -30,9 +30,10 @@ def count_gt(samples,rec_details):
     for k,sm in samples.items():
 
 
-        if (sm['GT'] == (None, None)
+        if (None in sm['GT']
             ):
             missing += 1
+            sm['GT'] = (None, None)
             tallyMissing(k, sm)
             continue
 
@@ -49,6 +50,8 @@ def count_gt(samples,rec_details):
                     failed[1] += 1
                 elif sm['GT'] == (1,1):
                     failed[2] += 1
+                else:
+                    raise Exception('Unknown GT in sample: {} {}'.format(sm['GT'], k))
 
                 #sm['GT'] += (0)
                 #print("{}{}".format(k,rec_details))
@@ -65,6 +68,8 @@ def count_gt(samples,rec_details):
                 failed[1] += 1
             elif sm['GT'] == (1,1):
                 failed[2] += 1
+            else:
+                raise Exception('Unknown GT in sample: {} {}'.format(sm['GT'], k))
 
             #sm['GT'] += (0)
             sm['GT'] = (None, None)
