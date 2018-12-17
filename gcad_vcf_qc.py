@@ -46,7 +46,7 @@ def extract_subsets(fam):
     return samples, ct
 
 
-def write_subset_stats(prefix, subset, rec, vf, abhet, passing, failing, missing, gt_failed, depth_sum, clean_obs, mend_pairs, mend_errors, scores, vtype):
+def write_subset_stats(prefix, subset, rec, vf, abhet, passing, failing, missing, gt_failed, depth_sum, clean_obs, mend_pairs, mend_errors, scores, vtype, isWES, have_target):
     """
     """
     outfile = '{}.{}.tsv'.format(prefix, subset)
@@ -61,7 +61,13 @@ def write_subset_stats(prefix, subset, rec, vf, abhet, passing, failing, missing
                       'MeanDepth','HiDepth','ABHet','Mend_Incon','Mend_pairs','propMI','MultiAllele','FilteredOut',
                       'VFLAGS','rsID','RefAllele','AltAllele','QUAL','FILTER','VTYPE',
                       ]
-        fieldnames.extend(sorted(scores.keys()))
+
+        # Additional column for WES
+        if isWES:
+            fieldnames.extend(['InTargetRegion'])
+
+        # Add column names for subgroup scores
+        fieldnames.extend(scores.keys())
 
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames , delimiter='\t', lineterminator='\n')
 
@@ -110,6 +116,11 @@ def write_subset_stats(prefix, subset, rec, vf, abhet, passing, failing, missing
             'QUAL':"{0:.2f}".format(rec.qual),'FILTER':",".join(rec.filter.keys()),
             'VTYPE': vtype
             }
+        if have_target:
+           row['InTargetRegion'] = int(11 not in vf)
+        else:
+           row['InTargetRegion'] = '.'
+
         row.update(scores)
         writer.writerow(row)
 
@@ -281,9 +292,21 @@ def main():
         vcf_in.subset_samples(mi.sa.id_list)
 
     # Process WES TARGET BED(s)
+    isWES = 0
     if len(args.wes_target) > 0:
+        isWES = 1
         print("[WES] Reading-in target interval files for subsets: {}".format(args.wes_target))
         read_target_files(args.wes_target, rChr)
+
+        # Determine WES target file presence
+        for subset in samplesDict.keys():
+            have_target = 0
+            for tgt in args.wes_target:
+               if subset in tgt:
+                   have_target = 1
+
+            samplesDict[subset]['have_target'] = have_target
+
 
     # organize new vcf_out header
     vcf_out_hdr = vcf_in.header
@@ -348,7 +371,7 @@ def main():
                 {'filter': rec.filter, 'ref': rec.ref, 'alt': rec.alts,
                  'chr': rec.contig, 'pos': rec.pos
                  },
-                subset
+                subset,
             )
 
             grp_obs.append(clean_obs)
@@ -362,7 +385,9 @@ def main():
             # Companion file
             write_subset_stats(prefix_companions, subset, rec, vf, abhet,
                                passing, failing, missing, gt_failed, depth_sum, clean_obs,
-                               mend_pairs, mend_errors, scores, vtype )
+                               mend_pairs, mend_errors, scores, vtype,
+                               isWES, samplesDict[subset]['have_target']
+                              )
 
             # Append subset VFLAGS to INFO field
             rec.info[ "VFLAGS_" + subset ] = ",".join(map(str,vf))
