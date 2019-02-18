@@ -107,7 +107,7 @@ def calcVA(snp_samples, rec_details, subset):
 
     # VFLAG 11
     if targets and subset in targets[rec_details['chr']]:
-        variant_bin = reg2bin(rec_details['pos'], rec_details['pos'])
+        variant_bin = reg2bin(rec_details['pos'])
 
         # simple case: bin is not in targets dict
         if variant_bin not in targets[rec_details['chr']][subset]:
@@ -179,6 +179,8 @@ def read_target_files(target_list, chr):
     :param chr: optional chromosome region restriction
     """
 
+    bin_set = set()
+
     for trgt_str in target_list:
         trgt = trgt_str.split(':')
 
@@ -204,31 +206,46 @@ def read_target_files(target_list, chr):
                     if f_chr not in targets:
                         targets[f_chr] = {subset: dict()}
 
-                region_bin = reg2bin(f_start, f_end)
+                bin_start = reg2bin(f_start)
+                bin_end = reg2bin(f_end)
+
+                bin_set.clear()
+
+                if bin_start == bin_end:
+                     bin_set.add(bin_start)
+                else:
+                   bin_set.add(bin_start)
+                   bin_set.add(bin_end)
+                   for i in range(f_start + 1, f_end):
+                      bin_set.add ( reg2bin(i) )
+
 
                 if subset not in targets[f_chr]:
                     targets[f_chr][subset] = dict()
 
-                if region_bin in targets[f_chr][subset]:
-                    targets[f_chr][subset][region_bin].append([f_start, f_end])
-                else:
-                    targets[f_chr][subset][region_bin] = list([[f_start, f_end]])
+                for region_bin in bin_set:
+                   if region_bin in targets[f_chr][subset]:
+                       targets[f_chr][subset][region_bin].append([f_start, f_end])
+                   else:
+                       targets[f_chr][subset][region_bin] = list([[f_start, f_end]])
 
     return
 
 
-def reg2bin(beg, end):
+def reg2bin(beg):
     """
     reg2bin - convert region to bin, adapted from genomic interval conversion to bin position
+              Based off the algorithm presented in:
+              https://samtools.github.io/hts-specs/SAMv1.pdf
+
     :param beg: region start
-    :param end: region end
     :return: bin
     """
-    end -= 1
-    if beg >> 14 == end >> 14: return int(((1 << 15)-1) / 7 + (beg >> 14))
-    if beg >> 17 == end >> 17: return int(((1 << 12)-1) / 7 + (beg >> 17))
-    if beg >> 20 == end >> 20: return int(((1 << 9)-1) / 7 + (beg >> 20))
-    if beg >> 23 == end >> 23: return int(((1 << 6)-1) / 7 + (beg >> 23))
-    if beg >> 26 == end >> 26: return int(((1 << 3)-1) / 7 + (beg >> 26))
-    return 0
+    #end = beg
+    #if beg >> 14 == end >> 14: return int(((1 << 15)-1) / 7 + (beg >> 14))
+    #if beg >> 17 == end >> 17: return int(((1 << 12)-1) / 7 + (beg >> 17))
+    #if beg >> 20 == end >> 20: return int(((1 << 9)-1) / 7 + (beg >> 20))
+    #if beg >> 23 == end >> 23: return int(((1 << 6)-1) / 7 + (beg >> 23))
+    #if beg >> 26 == end >> 26: return int(((1 << 3)-1) / 7 + (beg >> 26))
+    return int(((1 << 15)-1) / 7 + (beg >> 14))
 
