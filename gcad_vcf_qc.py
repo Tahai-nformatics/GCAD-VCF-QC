@@ -445,7 +445,12 @@ def main():
 
 
 def calculate_subgroup_scores(subset, subg, subg_cntl):
-    """
+    """ calculate_subgroup_scores - generates nClean, Zhet, and pHWE for subgroups
+                                    added to TAGs within the INFO field. pHWE-subgroup has
+                                    the following criteria, (1) must have N >= 5,
+                                    (2) must only use data from controls within the subgroup
+
+        @return scores - dict() of the added calculations
     """
     scores = OrderedDict()
     for k in mi.sa.subsets[subset]:
@@ -453,7 +458,7 @@ def calculate_subgroup_scores(subset, subg, subg_cntl):
         val_cntl = subg_cntl[k]
         scores['nClean_' + k] = sum(val) # ",".join(map(str,val)),
         scores['Zhet_' + k] = calc_ExcessHet(*val)[0]
-        scores['pHWE_' + k] = calc_pHWE(*val_cntl)
+        scores['pHWE_' + k] = calc_pHWE(*val_cntl) if sum(val_cntl) >= 5 else '.'
         if type(scores['Zhet_' + k]) == float:
             scores['Zhet_' + k] = "{0:.6f}".format(scores['Zhet_' + k])
         if type(scores['pHWE_' + k]) == float:
