@@ -116,10 +116,12 @@ def write_subset_stats(prefix, subset, rec, vf, abhet, passing, failing, missing
             'QUAL':"{0:.2f}".format(rec.qual),'FILTER':",".join(rec.filter.keys()),
             'VTYPE': vtype
             }
-        if have_target:
-           row['InTargetRegion'] = int(11 not in vf)
-        else:
-           row['InTargetRegion'] = '.'
+
+        if isWES:
+           if have_target:
+              row['InTargetRegion'] = int(11 not in vf)
+           else:
+              row['InTargetRegion'] = '.'
 
         row.update(scores)
         writer.writerow(row)
@@ -184,8 +186,8 @@ def write_indiv_summary(prefix):
                             'Singleton': val.tallySA['singleton'],
                             'Private_Doubleton': val.tallySA['p_dblton'],
                             'Doubleton': val.tallySA['doubleton'],
-                            'HetHom':"{0:.2f}".format(het_hom),
-                            'Ti': val.tallySA['ti'], 'Tv': val.tallySA['tv'], 'TiTvRatio':"{0:.2f}".format(ti_tv),'IndMeanDepth':"{0:.2f}".format(mean_depth),
+                            'HetHom':"{0:.5f}".format(het_hom),
+                            'Ti': val.tallySA['ti'], 'Tv': val.tallySA['tv'], 'TiTvRatio':"{0:.5f}".format(ti_tv),'IndMeanDepth':"{0:.5f}".format(mean_depth),
                             '1P_MI': val.tallySA['vp1'],'2P_MI':val.tallySA['vp2'],'MI_pairs':val.tallySA['mend_pair'],
                             'Non_Missing_Indels': val.tallySA['non_missing_indel']
                             })
@@ -293,7 +295,8 @@ def main():
 
     # Process WES TARGET BED(s)
     isWES = 0
-    if len(args.wes_target) > 0:
+    total_targets = 0
+    if args.wes_target and len(args.wes_target) > 0:
         isWES = 1
         print("[WES] Reading-in target interval files for subsets: {}".format(args.wes_target))
         read_target_files(args.wes_target, rChr)
@@ -304,9 +307,9 @@ def main():
             for tgt in args.wes_target:
                if subset in tgt:
                    have_target = 1
+                   total_targets += 1
 
             samplesDict[subset]['have_target'] = have_target
-
 
     # organize new vcf_out header
     vcf_out_hdr = vcf_in.header
@@ -314,6 +317,10 @@ def main():
     for k in samplesDict.keys():
         vcf_out_hdr.add_meta('INFO', items=[('ID', 'VFLAGS_' + k), ('Number','.'), ('Type', 'String'), ('Description','Pipeline-specific QC variant flags')])
         vcf_out_hdr.add_meta('INFO', items=[('ID', 'ABHet_' + k), ('Number',1), ('Type', 'Float'), ('Description','Allelic Read Ratio')])
+
+    if isWES:
+        vcf_out_hdr.add_meta('INFO', items=[('ID', 'VariantInTargetFraction'), ('Number','.'), ('Type', 'String'), ('Description','Fraction of the variant\'s presence in given target regions')])
+        vcf_out_hdr.add_meta('INFO', items=[('ID', 'VariantInTargetRatio'), ('Number',1), ('Type', 'Float'), ('Description','Ratio of the variant\'s presence in given target regions')])
 
     vcf_out_hdr.add_meta('INFO', items=[('ID', 'VariantType'), ('Number',1), ('Type', 'String'), ('Description','Variant type description')])
 
@@ -363,6 +370,7 @@ def main():
         #
         samplesDict = gather_intersect_fam_vcf_samples(rec.samples, samplesDict)
         grp_obs = list()
+        vflag_11_ct = 0
 
         for subset, sm_list in samplesDict.items():
             # calc stats
@@ -383,10 +391,14 @@ def main():
             scores = calculate_subgroup_scores(subset, subg, subg_cntl)
 
             # Companion file
+            have_target = 0
+            if isWES:
+               have_target = samplesDict[subset]['have_target']
+
             write_subset_stats(prefix_companions, subset, rec, vf, abhet,
                                passing, failing, missing, gt_failed, depth_sum, clean_obs,
                                mend_pairs, mend_errors, scores, vtype,
-                               isWES, samplesDict[subset]['have_target']
+                               isWES, have_target
                               )
 
             # Append subset VFLAGS to INFO field
@@ -397,6 +409,17 @@ def main():
 
             # Append VariantType
             rec.info[ "VariantType" ] = vtype
+
+            # count number of vflag(11) for VariantInTargetRatio
+            if have_target:
+               #vflag_11_ct += (11 not in vf)
+               if (11 not in vf):
+                  #vflag_11_ct += sum( mi.sa.subsets[subset].values())
+                  vflag_11_ct += missing + gt_failed + sum(clean_obs)
+
+        # Append VariantInTargetRatio
+        rec.info[ "VariantInTargetFraction" ] = str(vflag_11_ct) + '/' + str(set_size)
+        rec.info[ "VariantInTargetRatio" ] = vflag_11_ct / set_size
 
         # sum obs by column
         total_obs = list(map(sum, zip(*grp_obs)))
