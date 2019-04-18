@@ -167,7 +167,7 @@ def calcVA(snp_samples, rec_details, subset):
     if het_dp > 0:
         ab_het = "{0:.4f}".format(het_ad / het_dp)
     else:
-        ab_het = "0.0000"
+        ab_het = 'NA'
 
     return [vf, ab_het, pass_cnt, fail_cnt, missing, gt_failed, depth_sum, clean_obs, subg, subg_c]
 
