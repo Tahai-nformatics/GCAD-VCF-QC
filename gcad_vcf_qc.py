@@ -418,8 +418,9 @@ def main():
                   vflag_11_ct += missing + gt_failed + sum(clean_obs)
 
         # Append VariantInTargetRatio
-        rec.info[ "VariantInTargetFraction" ] = str(vflag_11_ct) + '/' + str(set_size)
-        rec.info[ "VariantInTargetRatio" ] = vflag_11_ct / set_size
+        if isWES:
+           rec.info[ "VariantInTargetFraction" ] = str(vflag_11_ct) + '/' + str(set_size)
+           rec.info[ "VariantInTargetRatio" ] = vflag_11_ct / set_size
 
         # sum obs by column
         total_obs = list(map(sum, zip(*grp_obs)))
