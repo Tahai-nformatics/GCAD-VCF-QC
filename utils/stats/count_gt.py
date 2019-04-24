@@ -3,6 +3,7 @@
 import config as cfg
 import utils.SampleAnnotation.sample_annotation as mi
 from collections import OrderedDict
+import copy
 
 def count_gt(samples,rec_details):
     """
@@ -20,7 +21,7 @@ def count_gt(samples,rec_details):
     het_dp = 0 # for ABHET
 
     subgroup_counts = OrderedDict({key:[0,0,0] for key in mi.sa.subgroups})
-    subgroup_counts_cntrls = subgroup_counts.copy()
+    subgroup_counts_cntrls = copy.deepcopy(subgroup_counts)
 
     ref = rec_details['ref']
     alt = rec_details['alt'][0]
