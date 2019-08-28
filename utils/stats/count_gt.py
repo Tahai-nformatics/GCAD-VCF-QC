@@ -111,7 +111,7 @@ def count_gt(samples,rec_details):
 def increment_subgroup(k, idx, subgroup_counts, subgroup_counts_cntrls):
     subgroup_counts[ mi.sa.sa_collection[k].get_subgroup() ][idx] += 1
 
-    if mi.sa.sa_collection[k].is_control:
+    if mi.sa.sa_collection[k].is_control():
         subgroup_counts_cntrls[ mi.sa.sa_collection[k].get_subgroup() ][idx] += 1
 
     return subgroup_counts, subgroup_counts_cntrls

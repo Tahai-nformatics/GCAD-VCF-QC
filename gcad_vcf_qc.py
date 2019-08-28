@@ -457,7 +457,8 @@ def calculate_subgroup_scores(subset, subg, subg_cntl):
     for k in mi.sa.subsets[subset]:
         val = subg[k]
         val_cntl = subg_cntl[k]
-        scores['nClean_' + k] = sum(val) # ",".join(map(str,val)),
+        #scores['nClean_' + k] = sum(val) # ",".join(map(str,val)),
+        scores['nClean_' + k] =  ",".join(map(str,val)) + ';' + ",".join(map(str,val_cntl))
         scores['Zhet_' + k] = calc_ExcessHet(*val)[0]
         scores['pHWE_' + k] = calc_pHWE(*val_cntl) if sum(val_cntl) >= 5 else '.'
         if type(scores['Zhet_' + k]) == float:

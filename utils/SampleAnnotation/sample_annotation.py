@@ -25,7 +25,7 @@ class Sample:
         """
         AFF: 0 = unknown; 1 = unaffected (controls); 2 = affected (cases)
         """
-        return bool(self.details_dict.AFF == 1)
+        return (self.details_dict.AFF == '1')
 
 class SampleAnnotation:
     """
