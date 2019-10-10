@@ -174,8 +174,13 @@ def calcVA(snp_samples, rec_details, subset):
 
 def read_target_files(target_list, chr):
     """
-    read_target_files - read-in BED files for WES VFLAG 11
-    :param targets: list of BED files
+    read_target_files - read-in BED files for WES VFLAG 11. We build a targets(dict) to store
+                        all lines within each BED file. The keys are chromosomes. Each chromosome
+                        key has a dict() of subsets listing each bin for associated target region line.
+                        So all target region lines are converted to bin and grouped by their bin, and
+                        then grouped by their subset.
+
+    :param target_list: list of BED files formatted having a colon ':' between the path and subset name
     :param chr: optional chromosome region restriction
     """
 
@@ -228,6 +233,7 @@ def read_target_files(target_list, chr):
                        targets[f_chr][subset][region_bin].append([f_start, f_end])
                    else:
                        targets[f_chr][subset][region_bin] = list([[f_start, f_end]])
+
 
     return
 
