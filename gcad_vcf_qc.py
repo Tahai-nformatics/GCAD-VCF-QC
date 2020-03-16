@@ -26,23 +26,51 @@ warnings.simplefilter('always')
 def extract_subsets(fam):
     """
     extract_subsets - Creates an OrderedDict() where Subset groupings are the key,
-                     values are SampID within it
+                      values are a set of SampID within it
     @return Samples Dict per Subset
     """
-    SampleFamDetail = namedtuple('SampleFamDetail',['SampID','FID','SubjID','FA','MO',
+
+    # Check number of columns
+    with open(fam, 'r') as fam_file:
+      first_line = fam_file.readline()
+
+    ncol = first_line.count('\t') + 1
+
+    #
+    if ncol == 15:
+       SampleFamDetail = namedtuple('SampleFamDetail',['SampID','FID','SubjID','FA','MO',
                                                     'SEX','AFF','AD','AGE','ADSPWGS',
                                                     'Subset','Subgroup','Race_Ethnicity','SeqCtr','ExcludeFromZHet'])
+    elif ncol == 17:
+       SampleFamDetail = namedtuple('SampleFamDetail',['SampID','FID','SubjID','FA','MO',
+                                                    'SEX','AFF','AD','AGE','ADSPWGS',
+                                                    'Subset','Subgroup','Race_Ethnicity','SeqCtr','ExcludeFromZHet',
+                                                    'TargetFile', 'TargetFilePath'])
+    else:
+       raise TypeError("Wrong number of columns")
+
 
     samples = OrderedDict()
     ct = 0
     with open(fam, 'r') as fam_file:
         for sm in map(SampleFamDetail._make, csv.reader(fam_file, delimiter='\t')):
+          if ncol==15:
             if sm.Subset in samples:
                 samples[sm.Subset].add(sm.SampID)
             else:
                 samples[sm.Subset] = set()
                 samples[sm.Subset].add(sm.SampID)
-            ct += 1
+          elif ncol==17:
+            combined = sm.Subset + '-' + sm.TargetFile
+
+            if combined in samples:
+                samples[combined].add(sm.SampID)
+            else:
+                samples[combined] = set()
+                samples[combined].add(sm.SampID)
+          ct += 1
+
+
     return samples, ct
 
 
@@ -218,7 +246,7 @@ def main():
 
     grp_settings = argparser.add_argument_group(title='Threshold Settings')
     grp_settings.add_argument('--min_dp', type=int, help='minimum depth (DP)', default=10, required=False)
-    grp_settings.add_argument('--min_gq', type=int, help='maximum genotype quality (GQ)', default=20, required=False)
+    grp_settings.add_argument('--min_gq', type=int, help='minimum genotype quality (GQ)', default=20, required=False)
     grp_settings.add_argument('--is_fam', type=int, help='is this family data, 1=yes, 0=no', default=1, required=False)
     grp_settings.add_argument('--min_tranche', type=int, help='Minimum Tranche Score (Filter from VQSR)', default=99.7, required=False)
     grp_settings.add_argument('--miss_rate', type=int, help='max missingness threshold', default=0.2, required=False)
@@ -310,6 +338,22 @@ def main():
                    total_targets += 1
 
             samplesDict[subset]['have_target'] = have_target
+
+    if mi.sa.get_targets():
+        isWES = 1
+#       print("[WES] Reading-in target interval files for samples")
+        read_target_files(mi.sa.get_targets(), rChr)
+
+        # Determine WES target file presence
+        for subset in samplesDict.keys():
+            have_target = 0
+            for tgt in mi.sa.get_targets():
+               if subset in tgt:
+                   have_target = 1
+                   total_targets += 1
+
+            samplesDict[subset]['have_target'] = have_target
+
 
     # organize new vcf_out header
     vcf_out_hdr = vcf_in.header
@@ -454,6 +498,10 @@ def calculate_subgroup_scores(subset, subg, subg_cntl):
         @return scores - dict() of the added calculations
     """
     scores = OrderedDict()
+
+    if mi.sa.get_divide():
+      subset = subset.split('-')[0]
+
     for k in mi.sa.subsets[subset]:
         val = subg[k]
         val_cntl = subg_cntl[k]

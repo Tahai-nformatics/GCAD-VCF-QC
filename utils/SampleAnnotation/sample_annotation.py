@@ -33,6 +33,7 @@ class SampleAnnotation:
     def __init__(self):
         self.sa_collection = dict()
         self.id_list = set()
+        self.subject_list = set()
         #self.good_gt = set()
         self.mi_kids = list()
         self.singletons = list()
@@ -40,6 +41,8 @@ class SampleAnnotation:
         self.dbltons = list()
         self.subsets = defaultdict(Counter)
         self.subgroups = set()
+        self.target_files = set()
+        self.subdivide_by_targets = False
 
     def add_family_sample(self, sample):
         if sample.details_dict.FA in self.id_list:
@@ -67,8 +70,9 @@ class SampleAnnotation:
 
         return
 
-    def add_id(self,indiv_id):
+    def add_id(self,indiv_id, subj_id):
         self.id_list.add(indiv_id)
+        self.subject_list.add(subj_id)
 
     def has_father(self,sid):
         return self.sa_collection[sid].has_father
@@ -138,19 +142,49 @@ class SampleAnnotation:
     def add_dbltons(self, indiv_id):
         self.dbltons.append(indiv_id)
 
+    def add_target_file(self, trgt_path, subset, target):
+        self.target_files.add(trgt_path + ':' + subset + '-' + target)
+        self.subdivide_by_targets = True
+
+    def get_targets(self):
+        return self.target_files
+
+    def get_divide(self):
+        return self.subdivide_by_targets
+
+
 def createSampleAnnotation(fam):
     """
     """
-    SampleFamDetail = namedtuple('SampleFamDetail',['SampID','FID','SubjID','FA','MO','SEX','AFF','AD','AGE','ADSPWGS','Subset','Subgroup','Race_Ethnicity','SeqCtr','ExcludeFromZHet'])
 
+    # Check number of columns
+    with open(fam, 'r') as fam_file:
+      first_line = fam_file.readline()
+
+    ncol = first_line.count('\t') + 1
+
+    if ncol==15:
+       SampleFamDetail = namedtuple('SampleFamDetail',['SampID','FID','SubjID','FA','MO','SEX','AFF','AD','AGE','ADSPWGS','Subset','Subgroup','Race_Ethnicity','SeqCtr','ExcludeFromZHet'])
+
+    elif ncol==17:
+       SampleFamDetail = namedtuple('SampleFamDetail',['SampID','FID','SubjID','FA','MO','SEX','AFF','AD','AGE','ADSPWGS','Subset','Subgroup','Race_Ethnicity','SeqCtr','ExcludeFromZHet','TargetFile', 'TargetFilePath'])
+
+    else:
+      raise TypeError("Unexpected number of columns: %s" % ncol)
+
+    # Read FAM file once to get all sample names
     with open(fam, 'r') as fam_file:
         for sm in map(SampleFamDetail._make, csv.reader(fam_file, delimiter='\t')):
-            sa.add_id(sm.SampID)
+            sa.add_id(sm.SampID, sm.SubjID)
+            if sm.TargetFilePath:
+               sa.add_target_file(sm.TargetFilePath, sm.Subset, sm.TargetFile)
 
+    # Re-read FAM file to add in family links
     with open(fam, 'r') as fam_file:
         for sm in map(SampleFamDetail._make, csv.reader(fam_file, delimiter='\t')):
             sa.add_family_sample( Sample(sm) )
 
+    # remove samples from within subsets having fewer than 5 individuals
     to_delete = list()
     for subset, s_count in sa.subsets.items():
         for k, v in s_count.items():
@@ -158,8 +192,8 @@ def createSampleAnnotation(fam):
             to_delete.append([subset, k])
 
     for blk in to_delete:
-        print("[FAM] Ignoring {}:{}, too few samples ({})".format(blk[0], blk[1], sa.subsets[ blk[0] ][ blk[1] ] ) )
-        del sa.subsets[ blk[0] ][ blk[1] ]
+        print("[FAM] Excluding from HWE {}:{}, too few samples ({})".format(blk[0], blk[1], sa.subsets[ blk[0] ][ blk[1] ] ) )
+        #del sa.subsets[ blk[0] ][ blk[1] ]
 
     return
 
