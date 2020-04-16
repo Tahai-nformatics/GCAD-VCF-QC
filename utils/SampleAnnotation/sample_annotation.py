@@ -57,6 +57,7 @@ class SampleAnnotation:
         self.sa_collection[sample.details_dict.SampID].tallySA = dict.fromkeys([-9, (None,None), (0,0), (0,1), (1,0), (1,1),
                                                                                 'mend_pair','vp1','vp2',
                                                                                 'ti', 'tv', 'non_missing_indel',
+                                                                                'ti_wes', 'tv_wes',
                                                                                 'singleton', 'p_dblton', 'doubleton'],0)
         # DP store
         self.sa_collection[sample.details_dict.SampID].dp_total = 0
@@ -113,7 +114,7 @@ class SampleAnnotation:
         # tally missing and good genotypes
         self.sa_collection[indiv_id].tallySA[ vsm['GT'] ] += 1
 
-    def tallyTiTv(self, indiv_id, ref, alt):  #non_missing_indel
+    def tallyTiTv(self, indiv_id, ref, alt, wes_flag):  #non_missing_indel
         if ref==alt: return
         if len(alt) > 1 or len(ref) > 1:
             self.sa_collection[indiv_id].tallySA['non_missing_indel'] += 1
@@ -122,13 +123,21 @@ class SampleAnnotation:
         if ref in {'A', 'G'}:
             if alt in {'A', 'G'}:
                 self.sa_collection[indiv_id].tallySA['ti'] += 1
+                if wes_flag:
+                   self.sa_collection[indiv_id].tallySA['ti_wes'] += 1
             else:
                 self.sa_collection[indiv_id].tallySA['tv'] += 1
+                if wes_flag:
+                   self.sa_collection[indiv_id].tallySA['tv_wes'] += 1
         elif ref in {'C', 'T'}:
             if alt in {'C', 'T'}:
                 self.sa_collection[indiv_id].tallySA['ti'] += 1
+                if wes_flag:
+                   self.sa_collection[indiv_id].tallySA['ti_wes'] += 1
             else:
                 self.sa_collection[indiv_id].tallySA['tv'] += 1
+                if wes_flag:
+                   self.sa_collection[indiv_id].tallySA['tv_wes'] += 1
 
     def add_dp(self,indiv_id, dp):
         self.sa_collection[indiv_id].dp_total += dp
@@ -176,7 +185,7 @@ def createSampleAnnotation(fam):
     with open(fam, 'r') as fam_file:
         for sm in map(SampleFamDetail._make, csv.reader(fam_file, delimiter='\t')):
             sa.add_id(sm.SampID, sm.SubjID)
-            if sm.TargetFilePath:
+            if getattr(SampleFamDetail,'TargetFilePath', None) is not None:
                sa.add_target_file(sm.TargetFilePath, sm.Subset, sm.TargetFile)
 
     # Re-read FAM file to add in family links

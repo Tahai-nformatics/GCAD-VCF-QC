@@ -48,7 +48,54 @@ def calcVA(snp_samples, rec_details, subset):
                     else:
                         pass_snv = 1
 
-    [obs_hom1, obs_hets, obs_hom2, missing, gt_failed, depth_sum, failed, het_ad, het_dp, subg, subg_c] = count_gt(snp_samples, rec_details)
+    # VFLAG 11
+    in_region = None
+    if targets and subset in targets[rec_details['chr']]:
+        variant_bin = reg2bin(rec_details['pos'])
+
+        # simple case: bin is not in targets dict
+        if variant_bin not in targets[rec_details['chr']][subset]:
+            vf.append(11)
+        else:
+            in_region = False
+            is_insertion = len(rec_details['alt'][0]) - 1
+            is_deletion = len(rec_details['ref']) - 1
+
+            for interval in targets[rec_details['chr']][subset][variant_bin]:
+
+                if is_deletion:
+
+                    lower_bound = rec_details['pos']
+                    upper_bound = rec_details['pos'] + is_deletion
+
+                    # signal if the indel is contained within the target
+                    if interval[0] <= lower_bound <= interval[1]:
+                        in_region = True
+                        break
+
+                    if interval[0] <= upper_bound <= interval[1]:
+                        in_region = True
+                        break
+
+                    # also signal if the target is within the interval
+                    if lower_bound <= interval[0] <= upper_bound:
+                        in_region = True
+                        break
+
+                    if lower_bound <= interval[1] <= upper_bound:
+                        in_region = True
+                        break
+
+                else:
+                    if interval[0] <= rec_details['pos'] <= interval[1]:
+                        in_region = True
+                        break
+
+            if not in_region:
+                vf.append(11)
+
+
+    [obs_hom1, obs_hets, obs_hom2, missing, gt_failed, depth_sum, failed, het_ad, het_dp, subg, subg_c] = count_gt(snp_samples, rec_details, in_region)
     total = obs_hom1 + obs_hets + obs_hom2 + missing + gt_failed
     non_missing = obs_hom1 + obs_hets + obs_hom2
 
@@ -104,51 +151,6 @@ def calcVA(snp_samples, rec_details, subset):
     # VFLAG 7
     #if len(rec_details['alt']) > 1:
     #    vf.append(7)
-
-    # VFLAG 11
-    if targets and subset in targets[rec_details['chr']]:
-        variant_bin = reg2bin(rec_details['pos'])
-
-        # simple case: bin is not in targets dict
-        if variant_bin not in targets[rec_details['chr']][subset]:
-            vf.append(11)
-        else:
-            in_region = False
-            is_insertion = len(rec_details['alt'][0]) - 1
-            is_deletion = len(rec_details['ref']) - 1
-
-            for interval in targets[rec_details['chr']][subset][variant_bin]:
-
-                if is_deletion:
-
-                    lower_bound = rec_details['pos']
-                    upper_bound = rec_details['pos'] + is_deletion
-
-                    # signal if the indel is contained within the target
-                    if interval[0] <= lower_bound <= interval[1]:
-                        in_region = True
-                        break
-
-                    if interval[0] <= upper_bound <= interval[1]:
-                        in_region = True
-                        break
-
-                    # also signal if the target is within the interval
-                    if lower_bound <= interval[0] <= upper_bound:
-                        in_region = True
-                        break
-
-                    if lower_bound <= interval[1] <= upper_bound:
-                        in_region = True
-                        break
-
-                else:
-                    if interval[0] <= rec_details['pos'] <= interval[1]:
-                        in_region = True
-                        break
-
-            if not in_region:
-                vf.append(11)
 
     # VFLAG 0
     # Presence of VFLAGs counts as failing GTs

@@ -5,10 +5,31 @@ import utils.SampleAnnotation.sample_annotation as mi
 from collections import OrderedDict
 import copy
 
-def count_gt(samples,rec_details):
+def count_gt(samples, rec_details, in_region):
     """
     count_gt - sample genotype {0/0, 0/1, 1/1}
                Apply Genotype-level QC: DP<10, GQ<20; set to ./.
+
+    Parameters:
+    samples: samples object
+    rec_details (dict): record details
+    in_region (bool): is the record inside of a WES target region
+
+    Returns:
+    obs_hom1 (int): count of observed 0/0
+    obs_hts  (int): count of observerd 0/1
+    obs_hom2 (int): count of observed 1/1
+    missing  (int): count of sample missing a genotype
+    gt_failed (int): count of sample's genotype not passing DP/GQ minimum thresholds
+    depth_sum (int): sum of read depth for variant, from all passing samples
+    failed   (list): count of samples's genotype not passing miniumum DP/GQ, by genotype [0/0, 0/1, 1/1]
+    het_ad   (int): allele depth sum for all passing samples
+    het_dp   (int): sum depth (DP) for all passing samples
+    subgroup_counts (list): genotype count by subgroup
+    subgroup_counts_cntrls (list): genotype count by subgroup only on controls
+
+    Also alters global objects: mi.sa.tally
+
     """
     obs_hts = 0
     obs_hom1 = 0
@@ -91,7 +112,7 @@ def count_gt(samples,rec_details):
             het_dp += sm['DP']
 
             subgroup_counts, subgroup_counts_cntrls = increment_subgroup(k, 1, subgroup_counts, subgroup_counts_cntrls)
-
+            tallyTiTv(k, sm, ref, alt, in_region)
         elif sm['GT'] == (0,0):
             obs_hom1 += 1
             subgroup_counts, subgroup_counts_cntrls = increment_subgroup(k, 0, subgroup_counts, subgroup_counts_cntrls)
@@ -100,10 +121,11 @@ def count_gt(samples,rec_details):
             subgroup_counts, subgroup_counts_cntrls = increment_subgroup(k, 2, subgroup_counts, subgroup_counts_cntrls)
             #if obs_hom2 == 1 and obs_hts == 0:
                 #p_dblton = k
+            tallyTiTv(k, sm, ref, alt, in_region)
         else:
             raise TypeError("Weird GT")
 
-        tallyPassing(k, sm, ref, alt)
+        tallyPassing(k, sm)
 
 
     return [obs_hom1, obs_hts, obs_hom2, missing, gt_failed, depth_sum, failed, het_ad, het_dp, subgroup_counts, subgroup_counts_cntrls]
@@ -122,9 +144,11 @@ def tallyMissing(k, sm):
 def tallyFailed(k, sm):
     mi.sa.tally(k, sm, 1)
 
-def tallyPassing(k,sm, ref, alt):
+def tallyPassing(k,sm):
     mi.sa.tally(k, sm, -1)
-    mi.sa.tallyTiTv(k, ref, alt)
+
+def tallyTiTv(k,sm, ref, alt, wes_flag):
+    mi.sa.tallyTiTv(k, ref, alt, wes_flag)
 
 def is_good_gt(sm):
     """

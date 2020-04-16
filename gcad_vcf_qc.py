@@ -124,6 +124,8 @@ def write_subset_stats(prefix, subset, rec, vf, abhet, passing, failing, missing
         # MeanDepth
         mean_depth = depth_sum / sum_clean if sum_clean else 0
 
+        qual = "{0:.2f}".format(rec.qual) if rec.qual is not None else ''
+
         row = {'CHR': rec.contig, 'POS': rec.pos,
             'Pass00':passing[0],'Pass01':passing[1],'Pass11':passing[2],
             'Fail00':failing[0],'Fail01':failing[1],'Fail11':failing[2],
@@ -141,7 +143,8 @@ def write_subset_stats(prefix, subset, rec, vf, abhet, passing, failing, missing
             'VFLAGS':",".join(map(str,vf)),
             'rsID':rec.id if rec.id else '.',
             'RefAllele':rec.ref,'AltAllele':",".join(map(str,rec.alts)),
-            'QUAL':"{0:.2f}".format(rec.qual),'FILTER':",".join(rec.filter.keys()),
+            'QUAL':qual,
+            'FILTER':",".join(rec.filter.keys()),
             'VTYPE': vtype
             }
 
@@ -180,7 +183,7 @@ def write_mendelian_errors(prefix, rec, fam_info, genos ): # mmmm, genos
                          })
 
 
-def write_indiv_summary(prefix):
+def write_indiv_summary(prefix, isWES):
     """
     """
     outfile = '{}.tsv'.format(prefix)
@@ -191,6 +194,10 @@ def write_indiv_summary(prefix):
                       'Singleton','Private_Doubleton','Doubleton','HetHom',
                       'Ti','Tv','TiTvRatio','IndMeanDepth',
                       '1P_MI','2P_MI','MI_pairs','Non_Missing_Indels',]
+
+        if isWES:
+           fieldnames.extend(['TiTvRatio_WES'])
+
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames , delimiter='\t', lineterminator='\n')
 
         writer.writeheader()
@@ -208,7 +215,7 @@ def write_indiv_summary(prefix):
             good_gt = val.tallySA[(0,0)] + good_het_gt + val.tallySA[(1,1)]
             mean_depth = val.dp_total / good_gt if good_gt else 0
 
-            writer.writerow({'SampleID': indiv, 'SEX': val.details_dict.SEX,
+            row = {'SampleID': indiv, 'SEX': val.details_dict.SEX,
                             'total_nRR': val.tallySA[(0,0)],'total_nRA': good_het_gt,'total_nAA': val.tallySA[(1,1)],
                             'Missing': val.tallySA[(None,None)],'Set_Missing': val.tallySA[-9],
                             'Singleton': val.tallySA['singleton'],
@@ -218,7 +225,15 @@ def write_indiv_summary(prefix):
                             'Ti': val.tallySA['ti'], 'Tv': val.tallySA['tv'], 'TiTvRatio':"{0:.5f}".format(ti_tv),'IndMeanDepth':"{0:.5f}".format(mean_depth),
                             '1P_MI': val.tallySA['vp1'],'2P_MI':val.tallySA['vp2'],'MI_pairs':val.tallySA['mend_pair'],
                             'Non_Missing_Indels': val.tallySA['non_missing_indel']
-                            })
+                            }
+
+            # WES - TiTv
+            if isWES:
+               ti_tv_wes = val.tallySA['ti_wes'] if val.tallySA['tv_wes'] == 0 else val.tallySA['ti_wes'] / val.tallySA['tv_wes']
+               row['TiTvRatio_WES'] = "{0:.5f}".format(ti_tv_wes)
+
+            writer.writerow(row)
+    return
 
 
 def delete_previous_outputs(out_dir, prefix, subsets):
@@ -481,7 +496,7 @@ def main():
 
     end = time.time()
     print("{0:.2f}".format(end - start))
-    write_indiv_summary(prefix_indiv)
+    write_indiv_summary(prefix_indiv, isWES)
 
     if args.no_output_vcf == False:
         # create index
