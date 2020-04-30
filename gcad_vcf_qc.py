@@ -196,7 +196,7 @@ def write_indiv_summary(prefix, isWES):
                       '1P_MI','2P_MI','MI_pairs','Non_Missing_Indels',]
 
         if isWES:
-           fieldnames.extend(['TiTvRatio_WES'])
+           fieldnames.extend(['Ti_WES','Tv_WES','TiTvRatio_WES'])
 
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames , delimiter='\t', lineterminator='\n')
 
@@ -230,6 +230,8 @@ def write_indiv_summary(prefix, isWES):
             # WES - TiTv
             if isWES:
                ti_tv_wes = val.tallySA['ti_wes'] if val.tallySA['tv_wes'] == 0 else val.tallySA['ti_wes'] / val.tallySA['tv_wes']
+               row['Ti_WES'] = val.tallySA['ti_wes']
+               row['Tv_WES'] = val.tallySA['tv_wes']
                row['TiTvRatio_WES'] = "{0:.5f}".format(ti_tv_wes)
 
             writer.writerow(row)
