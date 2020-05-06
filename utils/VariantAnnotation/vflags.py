@@ -8,6 +8,9 @@ from utils.stats.count_gt import count_gt
 # global dictionary containing target intervals used in WES QC
 targets = dict()
 
+# global dictionart containing exons
+exons = dict()
+
 def calcVA(snp_samples, rec_details, subset):
     """
     calcVA - get Variant Annotation; VFLAGS and ABHet
@@ -94,8 +97,10 @@ def calcVA(snp_samples, rec_details, subset):
             if not in_region:
                 vf.append(11)
 
+    in_exon = check_inside_exon(rec_details['pos'], rec_details['chr'])
 
-    [obs_hom1, obs_hets, obs_hom2, missing, gt_failed, depth_sum, failed, het_ad, het_dp, subg, subg_c] = count_gt(snp_samples, rec_details, in_region)
+    # sample-level qc below. Results are required for remaining vflags
+    [obs_hom1, obs_hets, obs_hom2, missing, gt_failed, depth_sum, failed, het_ad, het_dp, subg, subg_c] = count_gt(snp_samples, rec_details, in_exon)
     total = obs_hom1 + obs_hets + obs_hom2 + missing + gt_failed
     non_missing = obs_hom1 + obs_hets + obs_hom2
 
@@ -173,6 +178,71 @@ def calcVA(snp_samples, rec_details, subset):
 
     return [vf, ab_het, pass_cnt, fail_cnt, missing, gt_failed, depth_sum, clean_obs, subg, subg_c]
 
+def check_inside_exon(pos, contig):
+   """
+   check_inside_exon - check to see if the variant position is inside an exon in exon_file
+   return true if pos is within start-end, false otherwise
+   """
+   if exons and contig in exons:
+        variant_bin = reg2bin(pos)
+
+        # simple case: bin is not in exons dict
+        if variant_bin not in exons[contig]:
+            return False
+        else:
+
+            for interval in exons[contig][variant_bin]:
+               if interval[0] <= pos <= interval[1]:
+                   return True
+
+   return False
+
+def read_exon_file(exon_file, chr):
+   """
+   read_exon_file - read-in exon file from BED format. Store as a dictionary of bins as keys
+                    and start/end as values
+   """
+
+   bin_set = set() # data structure to temporarily hold bin values
+
+   if chr:
+     exons[chr] = {}
+
+
+   with open(exon_file) as bed_file:
+
+       for bed_line in bed_file:
+           row = bed_line.split()
+           f_chr = row[0]
+           f_start = int(row[1])
+           f_end = int(row[2])
+
+           if chr:
+               if f_chr != chr: continue
+           else:
+               if f_chr not in exons:
+                  exons[f_chr] = {}
+
+           bin_set.clear()
+
+           bin_start = reg2bin(f_start)
+           bin_end = reg2bin(f_end)
+
+           if bin_start == bin_end:
+               bin_set.add(bin_start)
+           else:
+               bin_set.add(bin_start)
+               bin_set.add(bin_end)
+               for i in range(f_start + 1, f_end):
+                  bin_set.add ( reg2bin(i) )
+
+           for region_bin in bin_set:
+               if region_bin in exons[f_chr]:
+                   exons[f_chr][region_bin].append([f_start, f_end])
+               else:
+                   exons[f_chr][region_bin] = list([[f_start, f_end]])
+
+
 
 def read_target_files(target_list, chr):
     """
@@ -201,6 +271,7 @@ def read_target_files(target_list, chr):
             raise ValueError("WES target file missing subset assignment")
 
         with open(trgt[0]) as bed_file:
+            print("Reading %s" % trgt[0])
 
             for bed_line in bed_file:
                 row = bed_line.split()
