@@ -12,7 +12,7 @@ from collections import namedtuple, OrderedDict, Counter
 import time
 import cProfile
 
-from utils.VariantAnnotation.vflags import calcVA, read_target_files
+from utils.VariantAnnotation.vflags import calcVA, read_target_files, read_exon_file
 from utils.stats.count_gt import is_good_gt
 from utils.stats.statistical import calc_ExcessHet, calc_pHWE
 
@@ -192,7 +192,7 @@ def write_indiv_summary(prefix, isWES):
         fieldnames = ['SampleID','SEX',
                       'total_nRR','total_nRA','total_nAA','Missing','Set_Missing',
                       'Singleton','Private_Doubleton','Doubleton','HetHom',
-                      'Ti','Tv','TiTvRatio','IndMeanDepth',
+                      'Ti','Tv','TiTvRatio','IndDepthSum','IndMeanDepth',
                       '1P_MI','2P_MI','MI_pairs','Non_Missing_Indels',]
 
         if isWES:
@@ -222,7 +222,9 @@ def write_indiv_summary(prefix, isWES):
                             'Private_Doubleton': val.tallySA['p_dblton'],
                             'Doubleton': val.tallySA['doubleton'],
                             'HetHom':"{0:.5f}".format(het_hom),
-                            'Ti': val.tallySA['ti'], 'Tv': val.tallySA['tv'], 'TiTvRatio':"{0:.5f}".format(ti_tv),'IndMeanDepth':"{0:.5f}".format(mean_depth),
+                            'Ti': val.tallySA['ti'], 'Tv': val.tallySA['tv'], 'TiTvRatio':"{0:.5f}".format(ti_tv),
+                            'IndDepthSum': val.dp_total,
+                            'IndMeanDepth':"{0:.5f}".format(mean_depth),
                             '1P_MI': val.tallySA['vp1'],'2P_MI':val.tallySA['vp2'],'MI_pairs':val.tallySA['mend_pair'],
                             'Non_Missing_Indels': val.tallySA['non_missing_indel']
                             }
@@ -276,6 +278,8 @@ def main():
     wes_settings = argparser.add_argument_group(title='WES Settings')
     wes_settings.add_argument('--wes_target', type=str, help='WES Target BED file, e.g. filename:subset ', nargs='*', required=False)
     wes_settings.add_argument('--flank_size', type=int, help='size of target interval expansion in bp', default=7, required=False)
+    wes_settings.add_argument('--exon_file',  type=str, help='exon file for TiTv_WES', default=None, required=False)
+    wes_settings.add_argument('--chr',        type=str, help='chromosome loading hint', default=None, required=False)
 
     args, xtra = argparser.parse_known_args()
     print(args)
@@ -295,6 +299,9 @@ def main():
         regionStr = ".{}:{}-{}".format(rChr, rStart, rEnd)
         rStart -= 1
         if rStart < 0: rStart = 0
+
+    if rChr is None and args.chr is not None:
+       rChr = args.chr
 
     # Setup globals
     cfg.MINDP = args.min_dp
@@ -371,6 +378,10 @@ def main():
 
             samplesDict[subset]['have_target'] = have_target
 
+    # Process exon file
+    if args.exon_file:
+       print("[WES] Reading Exons BED file")
+       read_exon_file(args.exon_file, rChr)
 
     # organize new vcf_out header
     vcf_out_hdr = vcf_in.header
@@ -400,7 +411,7 @@ def main():
 
     # Output VCF
     if args.no_output_vcf:
-        print("No output VCF file.")
+        print("VCF output disabled.")
         print("{}".format(args))
     else:
         baseStr = os.path.basename(args.vcf.replace('.g.vcf','').replace('.vcf','').rpartition('.')[0])
