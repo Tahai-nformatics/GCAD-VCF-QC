@@ -126,6 +126,8 @@ def write_subset_stats(prefix, subset, rec, vf, abhet, passing, failing, missing
 
         qual = "{0:.2f}".format(rec.qual) if rec.qual is not None else ''
 
+        vf.sort()
+
         row = {'CHR': rec.contig, 'POS': rec.pos,
             'Pass00':passing[0],'Pass01':passing[1],'Pass11':passing[2],
             'Fail00':failing[0],'Fail01':failing[1],'Fail11':failing[2],

@@ -114,10 +114,15 @@ class SampleAnnotation:
         # tally missing and good genotypes
         self.sa_collection[indiv_id].tallySA[ vsm['GT'] ] += 1
 
-    def tallyTiTv(self, indiv_id, ref, alt, wes_flag):  #non_missing_indel
+    def tallyIndel(self, ref, alt): #non_missing_indel
         if ref==alt: return
         if len(alt) > 1 or len(ref) > 1:
             self.sa_collection[indiv_id].tallySA['non_missing_indel'] += 1
+            return
+
+    def tallyTiTv(self, indiv_id, ref, alt, wes_flag):
+        if ref==alt: return
+        if len(alt) > 1 or len(ref) > 1:
             return
 
         if ref in {'A', 'G'}:

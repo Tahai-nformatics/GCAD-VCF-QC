@@ -105,6 +105,7 @@ def count_gt(samples, rec_details, in_region):
 
 
         depth_sum += sm['DP']
+        tallyIndel(k, ref, alt)
 
         if (sm['GT'] in {(0,1), (1,0)} ):
             obs_hts += 1
@@ -146,6 +147,12 @@ def tallyFailed(k, sm):
 
 def tallyPassing(k,sm):
     mi.sa.tally(k, sm, -1)
+
+def tallyIndel(k, ref, alt):
+    if ref==alt: return
+    if len(alt) > 1 or len(ref) > 1:
+        mi.sa.sa_collection[k].tallySA['non_missing_indel'] += 1
+        return
 
 def tallyTiTv(k,sm, ref, alt, wes_flag):
     mi.sa.tallyTiTv(k, ref, alt, wes_flag)
