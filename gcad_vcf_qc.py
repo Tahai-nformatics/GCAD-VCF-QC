@@ -287,7 +287,6 @@ def main():
     print(args)
     print(xtra)
 
-    ct = 0
     start = time.time()
     rChr = None
     rStart = None
@@ -424,6 +423,9 @@ def main():
 
     delete_previous_outputs(args.out_dir, 'summary.snv' + regionStr, list(samplesDict.keys()))
 
+    ct = 0
+    start_p = time.time()
+
     # loop over each variant in VCF
     for rec in vcf_in.fetch(rChr, rStart, rEnd):
         #vcf_out.write(rec)
@@ -510,7 +512,12 @@ def main():
     if args.no_output_vcf == False: vcf_out.close()
 
     end = time.time()
-    print("{0:.2f}".format(end - start))
+    print("total_time:{0:.2f}".format(end - start))
+    print("process_time:{0:.2f}".format(end - start_p))
+    print("total_processed:{}".format(ct))
+    if ct > 0:
+       print("rate:{0:.1f}".format(ct/(end - start_p)))
+
     write_indiv_summary(prefix_indiv, isWES)
 
     if args.no_output_vcf == False:
@@ -532,7 +539,7 @@ def calculate_subgroup_scores(subset, subg, subg_cntl):
     if mi.sa.get_divide():
       subset = subset.split('-')[0]
 
-    for k in mi.sa.subsets[subset]:
+    for k in sorted(mi.sa.subsets[subset]):
         val = subg[k]
         val_cntl = subg_cntl[k]
         #scores['nClean_' + k] = sum(val) # ",".join(map(str,val)),
