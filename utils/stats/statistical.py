@@ -46,9 +46,9 @@ def calc_ExcessHet(aa, ab, bb):
 
     if maf > 0.5: maf = 1 - maf
 
-    if (ab == N):
+    if (ab == 0):
         result = '-999999'
-    elif (ab == 0):
+    elif (ab == N):
         result = '999999'
     elif ( (maf >0) and (ab >0) ):
         hetExpct = 2 * maf * ( 1 - maf)
@@ -132,20 +132,6 @@ def calc_pHWE(aa,ab,bb):
 
     return p_hwe
 
-def calc_pHWE_OLD(obs_hom1, obs_hets, obs_hom2):
-    """ 
-    """
-    from subprocess import check_output
-
-    p_hwe = (check_output(["perl",
-                            "-e", 
-                            "use lib '/home/ottov/gcad-qc-pipeline';use HardyWeinberg;print HardyWeinberg::snphwe(%d,%d,%d);" %
-                                (obs_hets, obs_hom1, obs_hom2)]).decode('ascii'))
-
-    if p_hwe != '.':p_hwe = "{:.4f}".format(float(p_hwe))
-    if p_hwe == 1: p_hwe='.'
-
-    return p_hwe
 
 def calc_ABHet(ad, dp):
     """
