@@ -47,11 +47,13 @@ def calc_ExcessHet(aa, ab, bb):
     if maf > 0.5: maf = 1 - maf
 
     if (ab == N):
-        result = '.'
+        result = '-999999'
+    elif (ab == 0):
+        result = '999999'
     elif ( (maf >0) and (ab >0) ):
         hetExpct = 2 * maf * ( 1 - maf)
         hetObs   = ab / N
-        t  = hetObs - hetExpct
+        t  = hetExpct - hetObs
         chisq = (N * t * t) / ( hetObs * (1 - hetObs) )
         result = math.sqrt(chisq)
         if t < 0:
@@ -59,15 +61,6 @@ def calc_ExcessHet(aa, ab, bb):
 
     return [result, maf]
 
-def calc_ExcessHet_OLD(aa, ab, bb):
-    from subprocess import check_output
-    zhet, hetz_maf = (check_output(
-                                ["perl",
-                                    "-e",
-                                    "use lib '/home/ottov/gcad-qc-pipeline';use ExcessHeterozygosity;@a=ExcessHeterozygosity::excess_het(%d,%d,%d);print join('\t',@a);" %
-                                    (aa, ab, bb)])
-                            .decode('ascii').split('\t'))
-    return [zhet, hetz_maf]
 
 def calc_pHWE(aa,ab,bb):
     """
