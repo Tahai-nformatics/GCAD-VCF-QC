@@ -43,6 +43,8 @@ def calc_ExcessHet(aa, ab, bb):
         maf = ((2 * bb) + ab)/(2*N)
         #p =   ((2 * aa) + ab)/(2*N)
         #q = 1 - p
+    else:
+        return ['-888888', None]
 
     if maf > 0.5: maf = 1 - maf
 
@@ -55,9 +57,7 @@ def calc_ExcessHet(aa, ab, bb):
         hetObs   = ab / N
         t  = hetExpct - hetObs
         chisq = (N * t * t) / ( hetObs * (1 - hetObs) )
-        result = math.sqrt(chisq)
-        if t < 0:
-            result = -result
+        result = math.sqrt(chisq) * math.copysign(1.0, -t)
 
     return [result, maf]
 
