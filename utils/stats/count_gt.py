@@ -75,9 +75,7 @@ def count_gt(samples, rec_details, in_region):
                 else:
                     raise Exception('Unknown GT in sample: {} {}'.format(sm['GT'], k))
 
-                #sm['GT'] += (0)
-                #print("{}{}".format(k,rec_details))
-                #raise
+                depth_sum += sm['DP']
                 sm['GT'] = (None, None)
                 tallyFailed(k, sm)
                 gt_failed += 1

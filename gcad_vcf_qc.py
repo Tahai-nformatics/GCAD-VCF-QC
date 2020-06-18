@@ -122,7 +122,8 @@ def write_subset_stats(prefix, subset, rec, vf, abhet, passing, failing, missing
         maf = "{0:.6f}".format(maf)
 
         # MeanDepth
-        mean_depth = depth_sum / sum_clean if sum_clean else 0
+        total_genotypes = sum_clean + gt_failed
+        mean_depth = depth_sum / total_genotypes if total_genotypes else 0
 
         qual = "{0:.2f}".format(rec.qual) if rec.qual is not None else 'NA'
 

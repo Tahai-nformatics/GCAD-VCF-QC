@@ -103,6 +103,7 @@ def calcVA(snp_samples, rec_details, subset):
     [obs_hom1, obs_hets, obs_hom2, missing, gt_failed, depth_sum, failed, het_ad, het_dp, subg, subg_c] = count_gt(snp_samples, rec_details, in_exon)
     total = obs_hom1 + obs_hets + obs_hom2 + missing + gt_failed
     non_missing = obs_hom1 + obs_hets + obs_hom2
+    total_genotypes = non_missing + gt_failed
 
     # VFLAG 2
     if (missing + gt_failed) == total:
@@ -119,8 +120,8 @@ def calcVA(snp_samples, rec_details, subset):
         vf.append(4)
 
     # VFLAG 5
-    if non_missing > 0:
-        if (depth_sum / non_missing) > cfg.max_dp:
+    if total_genotypes > 0:
+        if (depth_sum / total_genotypes) > cfg.max_dp:
             vf.append(5)
 
     # VFLAG 6
