@@ -216,7 +216,8 @@ def write_indiv_summary(prefix, isWES):
             # mean_depth
             good_het_gt = val.tallySA[(0,1)] + val.tallySA[(1,0)]
             good_gt = val.tallySA[(0,0)] + good_het_gt + val.tallySA[(1,1)]
-            mean_depth = val.dp_total / good_gt if good_gt else 0
+            all_gt = good_gt + val.tallySA[-9]
+            mean_depth = val.dp_total / all_gt if all_gt else 0
 
             row = {'SampleID': indiv, 'SEX': val.details_dict.SEX,
                             'total_nRR': val.tallySA[(0,0)],'total_nRA': good_het_gt,'total_nAA': val.tallySA[(1,1)],

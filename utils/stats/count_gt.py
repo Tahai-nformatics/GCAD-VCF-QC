@@ -56,7 +56,7 @@ def count_gt(samples, rec_details, in_region):
             ):
             missing += 1
             sm['GT'] = (None, None)
-            tallyMissing(k, sm)
+            tallyMissingSample(k, sm)
             continue
 
         try:
@@ -77,7 +77,7 @@ def count_gt(samples, rec_details, in_region):
 
                 depth_sum += sm['DP']
                 sm['GT'] = (None, None)
-                tallyFailed(k, sm)
+                tallyFailedSample(k, sm)
                 gt_failed += 1
                 continue
         except TypeError:  #TypeError: unorderable types: NoneType() < int() (missing DP)
@@ -93,7 +93,7 @@ def count_gt(samples, rec_details, in_region):
 
             #sm['GT'] += (0)
             sm['GT'] = (None, None)
-            tallyFailed(k, sm)
+            tallyFailedSample(k, sm)
             gt_failed += 1
             #raise TypeError("Weird {},{}, {}, {}".format(k,str(sm['GT']), str(sm['DP']), str(sm['AD']) ))
             continue
@@ -103,7 +103,7 @@ def count_gt(samples, rec_details, in_region):
 
 
         depth_sum += sm['DP']
-        tallyIndel(k, ref, alt)
+        tallyIndelSample(k, ref, alt)
 
         if (sm['GT'] in {(0,1), (1,0)} ):
             obs_hts += 1
@@ -124,7 +124,7 @@ def count_gt(samples, rec_details, in_region):
         else:
             raise TypeError("Weird GT")
 
-        tallyPassing(k, sm)
+        tallyPassingSample(k, sm)
 
 
     return [obs_hom1, obs_hts, obs_hom2, missing, gt_failed, depth_sum, failed, het_ad, het_dp, subgroup_counts, subgroup_counts_cntrls]
@@ -137,16 +137,16 @@ def increment_subgroup(k, idx, subgroup_counts, subgroup_counts_cntrls):
 
     return subgroup_counts, subgroup_counts_cntrls
 
-def tallyMissing(k, sm):
+def tallyMissingSample(k, sm):
     mi.sa.tally(k, sm, 0)
 
-def tallyFailed(k, sm):
+def tallyFailedSample(k, sm):
     mi.sa.tally(k, sm, 1)
 
-def tallyPassing(k,sm):
+def tallyPassingSample(k,sm):
     mi.sa.tally(k, sm, -1)
 
-def tallyIndel(k, ref, alt):
+def tallyIndelSample(k, ref, alt):
     if ref==alt: return
     if len(alt) > 1 or len(ref) > 1:
         mi.sa.sa_collection[k].tallySA['non_missing_indel'] += 1
