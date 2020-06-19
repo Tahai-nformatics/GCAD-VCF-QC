@@ -105,6 +105,8 @@ class SampleAnnotation:
     def tally(self, indiv_id, vsm, failed):
         if failed == 1:
             self.sa_collection[indiv_id].tallySA[ -9 ] += 1
+            if vsm['DP'] != None:
+                 self.add_dp(indiv_id, vsm['DP'])
             return
         elif failed == -1 :
             # good (passing) genotypes
