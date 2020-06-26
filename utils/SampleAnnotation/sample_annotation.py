@@ -2,6 +2,7 @@
 
 from collections import namedtuple, defaultdict, Counter
 import csv
+import sys
 
 class Sample:
     def __init__(self, details_dict):
@@ -172,12 +173,15 @@ class SampleAnnotation:
 def createSampleAnnotation(fam):
     """
     """
-
+    delimiter = '\t'
     # Check number of columns
     with open(fam, 'r') as fam_file:
       first_line = fam_file.readline()
 
-    ncol = first_line.count('\t') + 1
+    ncol = first_line.count(delimiter) + 1
+    if ncol == 1:
+        delimiter = ','
+        ncol = first_line.count(delimiter) + 1
 
     if ncol==15:
        SampleFamDetail = namedtuple('SampleFamDetail',['SampID','FID','SubjID','FA','MO','SEX','AFF','AD','AGE','ADSPWGS','Subset','Subgroup','Race_Ethnicity','SeqCtr','ExcludeFromZHet'])
@@ -190,14 +194,23 @@ def createSampleAnnotation(fam):
 
     # Read FAM file once to get all sample names
     with open(fam, 'r') as fam_file:
-        for sm in map(SampleFamDetail._make, csv.reader(fam_file, delimiter='\t')):
+        for sm in map(SampleFamDetail._make, csv.reader(fam_file, delimiter=delimiter)):
+
+            # check values
+            sys.tracebacklimit = None
+            for s in sm:
+                if s in [None, '']:
+                    raise ValueError("FAM file should not contain blank values")
+
+            sys.tracebacklimit = 0
+
             sa.add_id(sm.SampID, sm.SubjID)
             if getattr(SampleFamDetail,'TargetFilePath', None) is not None:
                sa.add_target_file(sm.TargetFilePath, sm.Subset, sm.TargetFile)
 
     # Re-read FAM file to add in family links
     with open(fam, 'r') as fam_file:
-        for sm in map(SampleFamDetail._make, csv.reader(fam_file, delimiter='\t')):
+        for sm in map(SampleFamDetail._make, csv.reader(fam_file, delimiter=delimiter)):
             sa.add_family_sample( Sample(sm) )
 
     # remove samples from within subsets having fewer than 5 individuals

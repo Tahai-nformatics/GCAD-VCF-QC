@@ -30,11 +30,15 @@ def extract_subsets(fam):
     @return Samples Dict per Subset
     """
 
+    delimiter = '\t'
     # Check number of columns
     with open(fam, 'r') as fam_file:
       first_line = fam_file.readline()
 
-    ncol = first_line.count('\t') + 1
+    ncol = first_line.count(delimiter) + 1
+    if ncol == 1:
+      delimiter = ','
+      ncol = first_line.count(delimiter) + 1
 
     #
     if ncol == 15:
@@ -53,7 +57,7 @@ def extract_subsets(fam):
     samples = OrderedDict()
     ct = 0
     with open(fam, 'r') as fam_file:
-        for sm in map(SampleFamDetail._make, csv.reader(fam_file, delimiter='\t')):
+        for sm in map(SampleFamDetail._make, csv.reader(fam_file, delimiter=delimiter)):
           if ncol==15:
             if sm.Subset in samples:
                 samples[sm.Subset].add(sm.SampID)
