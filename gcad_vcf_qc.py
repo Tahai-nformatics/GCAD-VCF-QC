@@ -394,8 +394,8 @@ def main():
     vcf_out_hdr = vcf_in.header
 
     for k in samplesDict.keys():
-        vcf_out_hdr.add_meta('INFO', items=[('ID', 'VFLAGS_' + k), ('Number','.'), ('Type', 'String'), ('Description','Pipeline-specific QC variant flags')])
-        vcf_out_hdr.add_meta('INFO', items=[('ID', 'ABHet_' + k), ('Number','.'), ('Type', 'String'), ('Description','Allelic Read Ratio')])
+        vcf_out_hdr.add_meta('INFO', items=[('ID', 'VFLAGS_' + k), ('Number','.'), ('Type', 'Integer'), ('Description','Pipeline-specific QC variant flags')])
+        vcf_out_hdr.add_meta('INFO', items=[('ID', 'ABHet_' + k), ('Number','1'), ('Type', 'Float'), ('Description','Allelic Read Ratio')])
 
     if isWES:
         vcf_out_hdr.add_meta('INFO', items=[('ID', 'VariantInTargetFraction'), ('Number','.'), ('Type', 'String'), ('Description','Fraction of the variant\'s presence in given target regions')])
@@ -484,10 +484,12 @@ def main():
                               )
 
             # Append subset VFLAGS to INFO field
-            rec.info[ "VFLAGS_" + subset ] = ",".join(map(str,vf))
+ #           rec.info[ "VFLAGS_" + subset ] = ",".join(map(str,vf))
+            rec.info[ "VFLAGS_" + subset ] = vf
 
+#            print(abhet)
             # Append subset ABHet to INFO field
-            rec.info[ "ABHet_" + subset ] = abhet
+            rec.info[ "ABHet_" + subset ] = float(abhet) if abhet != 'NA' else None
 
             # Append VariantType
             rec.info[ "VariantType" ] = vtype
