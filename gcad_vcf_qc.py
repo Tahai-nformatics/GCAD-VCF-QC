@@ -12,9 +12,10 @@ from collections import namedtuple, OrderedDict, Counter
 import time
 import cProfile
 
-from utils.VariantAnnotation.vflags import calcVA, read_target_files, read_exon_file
+from utils.VariantAnnotation.vflags import calcVA, calcVA_multiallelic, read_target_files, read_exon_file
 from utils.stats.count_gt import is_good_gt
-from utils.stats.statistical import calc_ExcessHet, calc_pHWE
+from utils.stats.count_gt import count_gt_multiallelic
+from utils.stats.statistical import calc_ExcessHet, calc_ExcessHet_multiallelic, calc_pHWE
 
 import utils.SampleAnnotation.sample_annotation as mi
 import config as cfg
@@ -77,6 +78,102 @@ def extract_subsets(fam):
 
     return samples, ct
 
+
+def write_subset_stats_multiallelic(prefix, rec, subset,maf, vf, passing_d,failing_d, missing,gt_failed,clean_passing_d,sum_clean,depth_sum,ab_het,mend_pairs,mend_errors,scores):
+
+    """
+         passing_d = {'obs_homo1':{},'obs_het':{},'obs_homo2':{}}
+    """
+    outfile = '{}.{}.tsv'.format(prefix, subset)
+    newfile = not os.path.exists(outfile)
+    rec_details = {'filter': rec.filter, 'ref': rec.ref, 'alt': rec.alts,
+                 'chr': rec.contig, 'pos': rec.pos}
+    callrate = 1 - (missing + gt_failed) / (missing + gt_failed + sum_clean)
+    N = len(rec_details['alt'])
+    allele_list = [n for n in range(0,N+1)]
+    het_maf_dict = {}
+    homo_maf_dict = {}
+    ac_ref_het = 0
+    total_genotypes = sum_clean + gt_failed
+#Determine VTYPE
+    alts_vtype = []
+    for alts in rec.alts:
+        ct = 0
+        if alts != "*":
+            if len(rec.ref) != len(alts):
+     #           print('length not equal')
+                VTYPE='INDEL'
+                alts_vtype.append(VTYPE)
+                continue
+            for i in range(len(rec.ref)):   # IF length of ref and alt is same...
+                if rec.ref[i] != alts[i]:   #If there is mismatch in BP
+                    VTYPE='SNP'
+                    ct +=1           #
+            if ct >1:
+                VTYPE='INDEL'
+                alts_vtype.append(VTYPE)
+            elif ct == 1:
+                VTYPE='SNP'
+        #        print('snp again')
+                alts_vtype.append(VTYPE)
+    if ( 'SNP' in alts_vtype ) and ( 'INDEL' in alts_vtype ):
+        VTYPE='MULTI_MIX'
+    elif 'SNP' in alts_vtype:
+        VTYPE='MULTI_SNP'
+    elif 'INDEL' in alts_vtype:
+        VTYPE='MULTI_INDEL'
+    else:
+        return "error"
+    mean_depth = depth_sum / total_genotypes if total_genotypes else 0
+
+    with open(outfile, 'a') as csvfile:
+        fieldnames = ['CHR','POS',
+                      'PASS_Homo_Ref','PASS_Het', "PASS_Homo_Alt",
+                      'FAIL_Homo_Ref', 'FAIL_Het', 'FAIL_Homo_Alt',
+                      'MISSING', 'GT_FAILED',
+                      'CLEAN_Homo_Ref', 'CLEAN_Het','CLEAN_Homo_Alt',
+                      'MONO','CALLRATE','CALLBAD','GATKPass',
+                      'Mendelian_Inconsistency','Mend_pairs','propMI','AF','MEAN_DEPTH', 'HI_DEPTH', 'ABHET',
+                      'VFLAGS', 'rsID', 'RefAllele', 'AltAlleles',
+                      'QUAL','FILTER','VTYPE',
+                     ]
+        fieldnames.extend(scores.keys())
+        writer = csv.DictWriter(csvfile, fieldnames=fieldnames , delimiter='\t', lineterminator='\n')
+
+        if newfile:
+            writer.writeheader()
+        qual = "{0:.2f}".format(rec.qual) if rec.qual is not None else 'NA'
+        row = {'CHR': rec.contig,
+               'POS': rec.pos,
+            'PASS_Homo_Ref':list(passing_d['obs_homo1'].values())[0],
+            "PASS_Het":",".join(str(x) for x in passing_d['obs_het'].values()),
+            "PASS_Homo_Alt":",".join(str(x) for x in passing_d['obs_homo2'].values()),
+            'FAIL_Homo_Ref':",".join(str(x) for x in failing_d['obs_homo1'].values()),
+            'FAIL_Het':",".join(str(x) for x in failing_d['obs_het'].values()),
+            'FAIL_Homo_Alt':",".join(str(x) for x in failing_d['obs_homo2'].values()),
+            'MISSING': missing,
+            'GT_FAILED':gt_failed,
+            'CLEAN_Homo_Ref': list(clean_passing_d['obs_homo1'].values())[0],
+            'CLEAN_Het':",".join(str(x) for x in clean_passing_d['obs_het'].values()),
+            'CLEAN_Homo_Alt': ",".join(str(x) for x in clean_passing_d['obs_homo2'].values()),
+            'MONO': int(3 in vf),
+            'CALLRATE':"{0:.5f}".format(callrate), 'CALLBAD':int(callrate < (1 - cfg.miss_rate)),
+            'GATKPass': int(1 not in vf),
+            'Mendelian_Inconsistency':mend_errors, 'Mend_pairs':mend_pairs,'propMI': "{0:.6f}".format(mend_errors / mend_pairs if mend_pairs >0 else -1),
+            'AF': ",".join(str(x) for x in maf),
+            'MEAN_DEPTH':"{0:.5f}".format(mean_depth), 'HI_DEPTH':int(mean_depth > cfg.max_dp),
+            'ABHET':",".join(str(x) for x in ab_het),
+            'VFLAGS': ",".join(str(x) for x in vf),
+            'rsID': rec.id if rec.id else '.',
+            'RefAllele': rec.ref,
+            'AltAlleles': ",".join(rec.alts),
+            'QUAL':qual,
+            'FILTER':",".join(rec.filter.keys()),
+            'VTYPE': VTYPE,
+            }
+        row.update(scores)
+        writer.writerow(row)
+    return
 
 def write_subset_stats(prefix, subset, rec, vf, abhet, passing, failing, missing, gt_failed, depth_sum, clean_obs, mend_pairs, mend_errors, scores, vtype, isWES, have_target):
     """
@@ -164,7 +261,6 @@ def write_subset_stats(prefix, subset, rec, vf, abhet, passing, failing, missing
         row.update(scores)
         writer.writerow(row)
 
-
     return
 
 
@@ -190,17 +286,63 @@ def write_mendelian_errors(prefix, rec, fam_info, genos ): # mmmm, genos
                          })
 
 
-def write_indiv_summary(prefix, isWES):
+def write_indiv_summary_multiallelic(prefix, isWES):
     """
     """
     outfile = '{}.tsv'.format(prefix)
 
+
+    possible_het_gts = [(1,0),(0,1),(2,0),(0,2),(3,0),(0,3),(4,0),(0,4),(5,0),(0,5),(6,0),(0,6),(7,0),(0,7),(8,0),(0,8),(9,0),(0,9),(10,0),(0,10),(11,0),(0,11),(12,0),(0,12),(13,0),(0,13),(14,0),(0,14),(15,0),(0,15),(16,0),(0,16)]
+    possible_alt_gts = [(1,1),(1,2),(1,3),(1,4),(1,5),(1,6),(1,7),(1,8),(1,9),(1,10),(1,11),(1,12),(1,13),(1,14),(1,15),(1,16),(2,1),(2,2),(2,3),(2,4),(2,5),(2,6),(2,7),(2,8),(2,9),(2,10),(2,11),(2,12),(2,13),(2,14),(2,15),(2,16),(3,1),(3,2),(3,3),(3,4),(3,5),(3,6),(3,7),(3,8),(3,9),(3,10),(3,11),(3,12),(3,13),(3,14),(3,15),(3,16),(4,1),(4,2),(4,3),(4,4),(4,5),(4,6),(4,7),(4,8),(4,9),(4,10),(4,11),(4,12),(4,13),(4,14),(4,15),(4,16),(5,1),(5,2),(5,3),(5,4),(5,5),(5,6),(5,7),(5,8),(5,9),(5,10),(5,11),(5,12),(5,13),(5,14),(5,15),(5,16),(6,1),(6,2),(6,3),(6,4),(6,5),(6,6),(6,7),(6,8),(6,9),(6,10),(6,11),(6,12),(6,13),(6,14),(6,15),(6,16),(7,1),(7,2),(7,3),(7,4),(7,5),(7,6),(7,7),(7,8),(7,9),(7,10),(7,11),(7,12),(7,13),(7,14),(7,15),(7,16),(8,1),(8,2),(8,3),(8,4),(8,5),(8,6),(8,7),(8,8),(8,9),(8,10),(8,11),(8,12),(8,13),(8,14),(8,15),(8,16),(9,1),(9,2),(9,3),(9,4),(9,5),(9,6),(9,7),(9,8),(9,9),(9,10),(9,11),(9,12),(9,13),(9,14),(9,15),(9,16),(10,1),(10,2),(10,3),(10,4),(10,5),(10,6),(10,7),(10,8),(10,9),(10,10),(10,11),(10,12),(10,13),(10,14),(10,15),(10,16),(11,1),(11,2),(11,3),(11,4),(11,5),(11,6),(11,7),(11,8),(11,9),(11,10),(11,11),(11,12),(11,13),(11,14),(11,15),(11,16),(12,1),(12,2),(12,3),(12,4),(12,5),(12,6),(12,7),(12,8),(12,9),(12,10),(12,11),(12,12),(12,13),(12,14),(12,15),(12,16),(13,1),(13,2),(13,3),(13,4),(13,5),(13,6),(13,7),(13,8),(13,9),(13,10),(13,11),(13,12),(13,13),(13,14),(13,15),(13,16),(14,1),(14,2),(14,3),(14,4),(14,5),(14,6),(14,7),(14,8),(14,9),(14,10),(14,11),(14,12),(14,13),(14,14),(14,15),(14,16),(15,1),(15,2),(15,3),(15,4),(15,5),(15,6),(15,7),(15,8),(15,9),(15,10),(15,11),(15,12),(15,13),(15,14),(15,15),(15,16),(16,1),(16,2),(16,3),(16,4),(16,5),(16,6),(16,7),(16,8),(16,9),(16,10),(16,11),(16,12),(16,13),(16,14),(16,15),(16,16)]
     with open(outfile, 'w') as csvfile:
-        fieldnames = ['SampleID','SEX',
-                      'total_nRR','total_nRA','total_nAA','Missing','Set_Missing',
-                      'Singleton','Private_Doubleton','Doubleton','HetHom',
-                      'Ti','Tv','TiTvRatio','IndDepthSum','IndMeanDepth',
-                      '1P_MI','2P_MI','MI_pairs','Non_Missing_Indels',]
+        fieldnames = ['SampleID','SEX', 'Pass', 'Fail','Missing', 'Set_Missing',
+                      'Singleton','Private_Doubleton','Doubleton','HetHom','IndMeanDepth']
+
+        if isWES:
+           fieldnames.extend(['Ti_WES','Tv_WES','TiTvRatio_WES'])
+
+        writer = csv.DictWriter(csvfile, fieldnames=fieldnames , delimiter='\t', lineterminator='\n')
+
+        writer.writeheader()
+
+        abc_order = OrderedDict(sorted(mi.sa.sa_collection.items()))
+        for indiv, val in abc_order.items():
+            het_hom = val.tallySA['passing_obs_het']/val.tallySA['passing_obs_homo2'] if val.tallySA['passing_obs_homo2'] else 0
+            # mean_depth
+            good_gt = val.tallySA[(0,0)] + val.tallySA['passing_obs_het'] + val.tallySA['passing_obs_homo2']
+            all_gt = good_gt + val.tallySA[-9]
+            mean_depth = val.dp_total / all_gt if all_gt else 0
+            row = {'SampleID': indiv, 'SEX': val.details_dict.SEX,
+                    'Pass': ",".join([str(val.tallySA['passing_obs_homo1']),str(val.tallySA['passing_obs_het']),str(val.tallySA['passing_obs_homo2'])]),
+                    'Fail':  ",".join([str(val.tallySA['failing_obs_homo1']),str(val.tallySA['failing_obs_het']),str(val.tallySA['failing_obs_homo2'])]),
+                    'Missing': val.tallySA[(None,None)],
+                    'Set_Missing': val.tallySA[-9],
+                    'Singleton': val.tallySA['singleton'],
+                    'Private_Doubleton': val.tallySA['p_dblton'],
+                    'Doubleton': val.tallySA['doubleton'],
+                    'HetHom':"{0:.5f}".format(het_hom),
+                    'IndMeanDepth':"{0:.5f}".format(mean_depth),
+                    }
+            # WES - TiTv
+            if isWES:
+               ti_tv_wes = val.tallySA['ti_wes'] if val.tallySA['tv_wes'] == 0 else val.tallySA['ti_wes'] / val.tallySA['tv_wes']
+               row['Ti_WES'] = val.tallySA['ti_wes']
+               row['Tv_WES'] = val.tallySA['tv_wes']
+               row['TiTvRatio_WES'] = "{0:.5f}".format(ti_tv_wes)
+            writer.writerow(row)
+    return
+
+
+
+def write_indiv_summary(prefix, isWES):
+    """
+    """
+    print('WRITING NEW ONE')
+    outfile = '{}.tsv'.format(prefix)
+
+    with open(outfile, 'w') as csvfile:
+        fieldnames = ['SampleID','SEX', 'Pass', 'Fail','Missing', 'Set_Missing',
+                      'Singleton','Private_Doubleton','Doubleton','HetHom','IndMeanDepth']
 
         if isWES:
            fieldnames.extend(['Ti_WES','Tv_WES','TiTvRatio_WES'])
@@ -222,20 +364,17 @@ def write_indiv_summary(prefix, isWES):
             good_gt = val.tallySA[(0,0)] + good_het_gt + val.tallySA[(1,1)]
             all_gt = good_gt + val.tallySA[-9]
             mean_depth = val.dp_total / all_gt if all_gt else 0
-
             row = {'SampleID': indiv, 'SEX': val.details_dict.SEX,
-                            'total_nRR': val.tallySA[(0,0)],'total_nRA': good_het_gt,'total_nAA': val.tallySA[(1,1)],
-                            'Missing': val.tallySA[(None,None)],'Set_Missing': val.tallySA[-9],
-                            'Singleton': val.tallySA['singleton'],
-                            'Private_Doubleton': val.tallySA['p_dblton'],
-                            'Doubleton': val.tallySA['doubleton'],
-                            'HetHom':"{0:.5f}".format(het_hom),
-                            'Ti': val.tallySA['ti'], 'Tv': val.tallySA['tv'], 'TiTvRatio':"{0:.5f}".format(ti_tv),
-                            'IndDepthSum': val.dp_total,
-                            'IndMeanDepth':"{0:.5f}".format(mean_depth),
-                            '1P_MI': val.tallySA['vp1'],'2P_MI':val.tallySA['vp2'],'MI_pairs':val.tallySA['mend_pair'],
-                            'Non_Missing_Indels': val.tallySA['non_missing_indel']
-                            }
+                    'Pass': ",".join([str(val.tallySA['passing_obs_homo1']),str(val.tallySA['passing_obs_het']),str(val.tallySA['passing_obs_homo2'])]),
+                    'Fail':  ",".join([str(val.tallySA['failing_obs_homo1']),str(val.tallySA['failing_obs_het']),str(val.tallySA['failing_obs_homo2'])]),
+                    'Missing': val.tallySA[(None,None)],
+                    'Set_Missing': val.tallySA[-9],
+                    'Singleton': val.tallySA['singleton'],
+                    'Private_Doubleton': val.tallySA['p_dblton'],
+                    'Doubleton': val.tallySA['doubleton'],
+                    'HetHom':"{0:.5f}".format(het_hom),
+                    'IndMeanDepth':"{0:.5f}".format(mean_depth),
+                    }
 
             # WES - TiTv
             if isWES:
@@ -282,6 +421,7 @@ def main():
     grp_settings.add_argument('--hetz_lim2', type=int, help='', default=99999, required=False)
     grp_settings.add_argument('--hwe_pval', type=int, help='', default=5e-06, required=False)
     grp_settings.add_argument('--hwe_maf', type=int, help='MAF threshold', default=0.01, required=False)
+    grp_settings.add_argument('--is_multiallelic', help='is this vcf multiallelic', action='store_true', required=False)
 
     wes_settings = argparser.add_argument_group(title='WES Settings')
     wes_settings.add_argument('--wes_target', type=str, help='WES Target BED file, e.g. filename:subset ', nargs='*', required=False)
@@ -404,7 +544,7 @@ def main():
     vcf_out_hdr.add_meta('INFO', items=[('ID', 'VariantType'), ('Number',1), ('Type', 'String'), ('Description','Variant type description')])
 
     vcf_out_hdr.add_meta('qc_tool', value=os.path.basename(__file__))
-    vcf_out_hdr.add_meta('qc_tool-version', value=check_output(["git", "--git-dir", os.path.dirname(__file__) + "/.git", "rev-parse", "--short", "HEAD"]).strip())
+    #vcf_out_hdr.add_meta('qc_tool-version', value=check_output(["git", "--git-dir", os.path.dirname(__file__) + "/.git", "rev-parse", "--short", "HEAD"]).strip())
     vcf_out_hdr.add_meta('qc_tool-arguments', value="{}".format(args))
 
     # Output filename for companions
@@ -432,106 +572,165 @@ def main():
     ct = 0
     start_p = time.time()
 
-    # loop over each variant in VCF
-    for rec in vcf_in.fetch(rChr, rStart, rEnd):
-        #vcf_out.write(rec)
 
+    if args.is_multiallelic:
+        for rec in vcf_in.fetch(rChr, rStart, rEnd):
+            #if rec.pos >= 7929590:
+             
+            samplesDict = gather_intersect_fam_vcf_samples(rec.samples, samplesDict)
+            for subset, sm_list in samplesDict.items():
+                
+                rec_details = {'filter': rec.filter, 'ref': rec.ref, 'alt': rec.alts,
+                                         'chr': rec.contig, 'pos': rec.pos}
+
+                [vf,maf,passing_d,failing_d,missing,gt_failed,clean_passing_d,sum_clean,depth_sum,ab_het,subg,subg_c,zhet_dict,zhet_sample_counts] = calcVA_multiallelic(sm_list['dict'],rec_details,subset)
+                mend_pairs, mend_errors = check_mendelian_errors_multiallelic(prefix_mi, rec)
+                scores = calculate_subgroup_scores_multiallelic(subset, subg, subg_c,zhet_dict,zhet_sample_counts)
+                write_subset_stats_multiallelic(prefix_companions, rec, subset, maf ,vf,passing_d,failing_d,missing,gt_failed,clean_passing_d,sum_clean,depth_sum,ab_het,mend_pairs,mend_errors,scores)
+
+        
+            find_s_d_multiallelic(clean_passing_d,rec.samples,passing_d)
+        
+        end = time.time()
+        print("total_time:{0:.2f}".format(end - start))
+        print("process_time:{0:.2f}".format(end - start_p))
+        print("total_processed:{}".format(ct))
+        if ct > 0:
+            print("rate:{0:.1f}".format(ct/(end - start_p)))
+        write_indiv_summary_multiallelic(prefix_indiv, isWES)
+
+
+    else: #Run analysis on biallelic chromosome
+    # loop over each variant in VCF
+        for rec in vcf_in.fetch(rChr, rStart, rEnd):
+        #vcf_out.write(rec)
+            print('SHOULDNT BE')
         #if rec.pos < 10684424: continue
-        if len(rec.alts) > 1:
+            if len(rec.alts) > 1:
             #print("Warning found multiallelic variant")
-            continue
+                continue
         #if ct > 10000:break
 
         # Variant Type: SNV, MNV, insertion, deletion
-        vtype = "SNV"
-        if len(rec.ref) > 1:
-            vtype = "Deletion"
-        elif len(rec.alts[0]) > 1:
-            vtype = "Insertion"
+            vtype = "SNV"
+            if len(rec.ref) > 1:
+                vtype = "Deletion"
+            elif len(rec.alts[0]) > 1:
+                vtype = "Insertion"
 
-        #
-        samplesDict = gather_intersect_fam_vcf_samples(rec.samples, samplesDict)
-        grp_obs = list()
-        vflag_11_ct = 0
+            #
+            samplesDict = gather_intersect_fam_vcf_samples(rec.samples, samplesDict)
+            grp_obs = list()
+            vflag_11_ct = 0
 
-        for subset, sm_list in samplesDict.items():
-            # calc stats
-            [vf, abhet, passing, failing, missing, gt_failed, depth_sum, clean_obs, subg, subg_cntl] = calcVA(
-                sm_list['dict'],
-                {'filter': rec.filter, 'ref': rec.ref, 'alt': rec.alts,
-                 'chr': rec.contig, 'pos': rec.pos
-                 },
-                subset,
-            )
+            for subset, sm_list in samplesDict.items():
+                # calc stats
+                [vf, abhet, passing, failing, missing, gt_failed, depth_sum, clean_obs, subg, subg_cntl] = calcVA(
+                    sm_list['dict'],
+                    {'filter': rec.filter, 'ref': rec.ref, 'alt': rec.alts,
+                     'chr': rec.contig, 'pos': rec.pos
+                     },
+                    subset,
+                )
 
-            grp_obs.append(clean_obs)
+                grp_obs.append(clean_obs)
 
-            # MI
-            mend_pairs, mend_errors = check_mendelian_errors(prefix_mi, rec)
+                # MI
+                mend_pairs, mend_errors = check_mendelian_errors(prefix_mi, rec)
 
-            # pHWE per subgroup
-            scores = calculate_subgroup_scores(subset, subg, subg_cntl)
+                # pHWE per subgroup
+                scores = calculate_subgroup_scores(subset, subg, subg_cntl)
 
-            # Companion file
-            have_target = 0
+                # Companion file
+                have_target = 0
+                if isWES:
+                   have_target = samplesDict[subset]['have_target']
+
+                write_subset_stats(prefix_companions, subset, rec, vf, abhet,
+                                   passing, failing, missing, gt_failed, depth_sum, clean_obs,
+                                   mend_pairs, mend_errors, scores, vtype,
+                                   isWES, have_target
+                                  )
+
+                # Append subset VFLAGS to INFO field
+     #           rec.info[ "VFLAGS_" + subset ] = ",".join(map(str,vf))
+                rec.info[ "VFLAGS_" + subset ] = vf
+
+    #            print(abhet)
+                # Append subset ABHet to INFO field
+                rec.info[ "ABHet_" + subset ] = float(abhet) if abhet != 'NA' else None
+
+                # Append VariantType
+                rec.info[ "VariantType" ] = vtype
+
+                # count number of vflag(11) for VariantInTargetRatio
+                if have_target:
+                   #vflag_11_ct += (11 not in vf)
+                   if (11 not in vf):
+                      #vflag_11_ct += sum( mi.sa.subsets[subset].values())
+                      vflag_11_ct += missing + gt_failed + sum(clean_obs)
+
+            # Append VariantInTargetRatio
             if isWES:
-               have_target = samplesDict[subset]['have_target']
+               rec.info[ "VariantInTargetFraction" ] = str(vflag_11_ct) + '/' + str(set_size)
+               rec.info[ "VariantInTargetRatio" ] = vflag_11_ct / set_size
 
-            write_subset_stats(prefix_companions, subset, rec, vf, abhet,
-                               passing, failing, missing, gt_failed, depth_sum, clean_obs,
-                               mend_pairs, mend_errors, scores, vtype,
-                               isWES, have_target
-                              )
+            # sum obs by column
+            total_obs = list(map(sum, zip(*grp_obs)))
 
-            # Append subset VFLAGS to INFO field
- #           rec.info[ "VFLAGS_" + subset ] = ",".join(map(str,vf))
-            rec.info[ "VFLAGS_" + subset ] = vf
+            find_s_d(total_obs, rec.samples)
 
-#            print(abhet)
-            # Append subset ABHet to INFO field
-            rec.info[ "ABHet_" + subset ] = float(abhet) if abhet != 'NA' else None
+            if args.no_output_vcf == False:
+                vcf_out.write(rec)
 
-            # Append VariantType
-            rec.info[ "VariantType" ] = vtype
+            #print()
+            ct += 1
 
-            # count number of vflag(11) for VariantInTargetRatio
-            if have_target:
-               #vflag_11_ct += (11 not in vf)
-               if (11 not in vf):
-                  #vflag_11_ct += sum( mi.sa.subsets[subset].values())
-                  vflag_11_ct += missing + gt_failed + sum(clean_obs)
+        if args.no_output_vcf == False: vcf_out.close()
 
-        # Append VariantInTargetRatio
-        if isWES:
-           rec.info[ "VariantInTargetFraction" ] = str(vflag_11_ct) + '/' + str(set_size)
-           rec.info[ "VariantInTargetRatio" ] = vflag_11_ct / set_size
-
-        # sum obs by column
-        total_obs = list(map(sum, zip(*grp_obs)))
-
-        find_s_d(total_obs, rec.samples)
-
-        if args.no_output_vcf == False:
-            vcf_out.write(rec)
-
-        #print()
-        ct += 1
-
-    if args.no_output_vcf == False: vcf_out.close()
-
-    end = time.time()
-    print("total_time:{0:.2f}".format(end - start))
-    print("process_time:{0:.2f}".format(end - start_p))
-    print("total_processed:{}".format(ct))
-    if ct > 0:
-       print("rate:{0:.1f}".format(ct/(end - start_p)))
-
-    write_indiv_summary(prefix_indiv, isWES)
+        end = time.time()
+        print("total_time:{0:.2f}".format(end - start))
+        print("process_time:{0:.2f}".format(end - start_p))
+        print("total_processed:{}".format(ct))
+        if ct > 0:
+            print("rate:{0:.1f}".format(ct/(end - start_p)))
+        write_indiv_summary(prefix_indiv, isWES)
 
     if args.no_output_vcf == False:
         # create index
         time.sleep(1)
         check_output(["tabix", "-f", vcf_out_filename])
+
+def calculate_subgroup_scores_multiallelic(subset, subg, subg_cntl,zhet_list,zhet_sample_counts):
+    """ calculate_subgroup_scores - generates nClean, Zhet, and pHWE for subgroups
+                                    added to TAGs within the INFO field. pHWE-subgroup has
+                                    the following criteria, (1) must have N >= 5,
+                                    (2) must only use data from controls within the subgroup
+
+        @return scores - dict() of the added calculations
+    """
+    scores = OrderedDict()
+
+    if mi.sa.get_divide():
+      subset = subset.split('-')[0]
+
+    for k in sorted(mi.sa.subsets[subset]):
+        val = subg[k]
+        zhet_val = zhet_list[k]
+        val_cntl = subg_cntl[k]
+        total_obs = sum([x + y for x,y in zip(subg[k],subg_cntl[k])])
+        zhet_count = zhet_sample_counts[k][0]
+        zhet_hom2_count = zhet_sample_counts[k][1]
+        scores['nClean_' + k] = sum(val) # ",".join(map(str,val)),
+        scores['nClean_' + k] =  ",".join(map(str,val)) + ';' + ",".join(map(str,val_cntl))
+        scores['Zhet_' + k] = calc_ExcessHet_multiallelic(zhet_val,total_obs,zhet_count,zhet_hom2_count) #zhet_val=allele#'s, zhet_count=het_counts, zhet_hom2_count=homozygous_alts
+        scores['pHWE_' + k] = calc_pHWE(*val_cntl) if sum(val_cntl) > 5 else '-1'
+        if type(scores['Zhet_' + k]) == float:
+            scores['Zhet_' + k] = "{0:.5f}".format(scores['Zhet_' + k])
+        if type(scores['pHWE_' + k]) == float:
+            scores['pHWE_' + k] = "{0:.5f}".format(scores['pHWE_' + k])
+    return scores
+
 
 
 def calculate_subgroup_scores(subset, subg, subg_cntl):
@@ -560,6 +759,42 @@ def calculate_subgroup_scores(subset, subg, subg_cntl):
             scores['pHWE_' + k] = "{0:.6f}".format(scores['pHWE_' + k])
 
     return scores
+
+
+
+def find_s_d_multiallelic(clean_passing_d, samples,passing_d): #het_gts):
+    
+    total_obs_homo_ref = list(clean_passing_d['obs_homo1'].values())[0]
+    total_obs_het = sum(list(clean_passing_d['obs_het'].values()))
+    total_obs_homo_alt = sum(list(clean_passing_d['obs_homo2'].values()))
+
+    maf = 0
+    total_obs = total_obs_homo_ref + total_obs_het + total_obs_homo_alt
+    if total_obs > 0:
+        maf = (total_obs_het + 2 * total_obs_homo_alt) / (2 * total_obs)
+    if maf <= 0.5:
+        if total_obs_het == 1 and total_obs_homo_alt == 0:
+            idv = find_singleton_multiallelic(samples,passing_d['obs_het'].keys())
+            if idv:
+                mi.sa.sa_collection[idv].tallySA['singleton'] += 1
+        elif total_obs_homo_alt == 1 and total_obs_het == 0:
+            idv = find_private_doubleton_multiallelic(samples,passing_d['obs_homo2'].keys())
+            if idv: mi.sa.sa_collection[idv].tallySA['p_dblton'] +=1
+        elif total_obs_het == 2 and total_obs_homo_alt == 0:
+            dbltons = find_doubletons_multiallelic(samples, passing_d['obs_het'].keys())
+            for idv in dbltons:
+                mi.sa.sa_collection[idv].tallySA['doubleton'] +=1
+    else:
+        if total_obs_het == 1 and total_obs_homo_ref == 0:
+            idv = find_singleton_multiallelic(samples, passing_d['obs_het'].keys())
+            mi.sa.sa_collection[idv].tallySA['singleton'] += 1
+        elif total_obs_homo_ref == 1 and total_obs_het == 0:
+            idv = find_private_doubleton_multiallelic(samples, passing_d['obs_homo1'].keys())
+            if idv: mi.sa.sa_collection[idv].tallySA['p_dblton'] += 1
+        elif total_obs_het == 2 and total_obs_homo_ref == 0:
+            dbltons = find_doubletons_multiallelic(samples,passing_d['obs_het'].keys())
+            for idv in dbltons:
+                mi.sa.sa_collection[idv].tallySA['doubleton'] += 1
 
 
 def find_s_d(total_obs, samples):
@@ -592,6 +827,16 @@ def find_s_d(total_obs, samples):
             for idv in dbltons:
                 mi.sa.sa_collection[idv].tallySA['doubleton'] += 1
 
+def find_singleton_multiallelic(samples, het_alleles):
+    for k, sm in samples.items():
+        for gts in het_alleles:
+            if sm['GT'] in gts:
+                try:
+                    if (sm['DP'] >= cfg.MINDP
+                        and sm['GQ'] >= cfg.MINGQ):
+                            return k
+                except TypeError:  # TypeError: unorderable types: NoneType() < int() (missing DP)
+                    continue
 
 def find_singleton(samples):
     for k, sm in samples.items():
@@ -602,6 +847,33 @@ def find_singleton(samples):
                         return k
             except TypeError:  # TypeError: unorderable types: NoneType() < int() (missing DP)
                 continue
+
+def find_private_doubleton_multiallelic(samples, allele):
+    for k, sm in samples.items():
+        for gts in allele:
+            if (sm['GT']) in gts:
+                try:
+                    if (sm['DP'] >= cfg.MINDP
+                        and sm['GQ'] >= cfg.MINGQ):
+                        return k
+                except TypeError:  # TypeError: unorderable types: NoneType() < int() (missing DP)
+                    continue
+def find_doubletons_multiallelic(samples, het_alleles):
+    k_list = list()
+    for k,sm in samples.items():
+        for gts in het_alleles:
+            if sm['GT'] in gts:
+                try:
+                    if (sm['DP'] >= cfg.MINDP
+                        and sm['GQ'] >= cfg.MINGQ):
+                            k_list.append(k)
+                except TypeError:  #TypeError: unorderable types: NoneType() < int() (missing DP)
+                    continue
+
+            if len(k_list) == 2:
+                return k_list
+
+    return k_list
 
 
 def find_private_doubleton(samples, allele):
@@ -641,6 +913,77 @@ def gather_intersect_fam_vcf_samples(vcf_samples, fam_samples):
             if key in sm_set['set']:
                 fam_samples[subset]['dict'][key] = sm
     return fam_samples
+
+
+def check_mendelian_errors_multiallelic(prefix, rec):
+    """
+    """
+    samples = rec.samples
+    mend_pairs = 0
+    mend_error = 0
+    kid_c = 0
+    for kid in mi.sa.get_mi_kids():
+        validparents = []
+        found_mi_error = 0
+        father = mi.sa.get_father(kid)
+        mother = mi.sa.get_mother(kid)
+        kid_c += 1
+        if father in mi.sa.id_list and is_good_gt(samples[ father ]):
+            #print('valid parent found')
+            mend_pairs += 1
+            validparents.append(father)
+        if mother in mi.sa.id_list and is_good_gt(samples[ mother ]):
+            mend_pairs += 1
+            validparents.append(mother)
+            #print('valid parent found')
+        # mend_error is child having allele not from parents
+        if validparents == []:
+            continue
+        elif len(validparents) == 1:
+            kid_allele1 = samples[kid]['GT'][0]
+            kid_allele2 = samples[kid]['GT'][1]
+
+            if ( kid_allele1 == samples[validparents[0]]['GT'][0] ) or ( kid_allele1 == samples[validparents[0]]['GT'][1] ): #Match
+                continue
+            elif ( kid_allele2 == samples[validparents[0]]['GT'][0] ) or ( kid_allele2 == samples[validparents[0]]['GT'][1] ):
+                continue
+            else:
+                mend_error += 1
+                found_mi_error = 1
+        elif len(validparents) == 2:
+            #print('YES ITS 2')
+
+            kid_allele1 = samples[kid]['GT'][0]
+            kid_allele2 = samples[kid]['GT'][1]
+
+            if ( kid_allele1 == samples[validparents[0]]['GT'][0] ) or ( kid_allele1 == samples[validparents[0]]['GT'][1] ): #Kid allele 1 matches parent 1
+                if ( kid_allele2 == samples[validparents[1]]['GT'][0] ) or ( kid_allele2 == samples[validparents[1]]['GT'][1] ): #Kid allele 2 matches parent 2
+                    continue
+                else:
+                    pass
+            if ( kid_allele2 == samples[validparents[0]]['GT'][0] ) or ( kid_allele2 == samples[validparents[0]]['GT'][1]) : # Kid allele 2 matches parent 1
+                if ( kid_allele1 == samples[validparents[1]]['GT'][0] ) or ( kid_allele1 == samples[validparents[1]]['GT'][1] ): #Kid allele 1 matches parent 2
+                    continue
+                else:
+                    mend_error += 1
+                    found_mi_error = 1
+            else:
+                mend_error += 1
+                found_mi_error = 1
+
+            #else: clean child
+
+        mi.sa.sa_collection[kid].tallySA['mend_pair'] += 1
+        if found_mi_error:
+            # save details
+            p2 = samples[ validparents[1] ]['GT'] if len(validparents)>1 else ('.')
+            write_mendelian_errors(prefix, rec,
+                                   [mi.sa.get_fam_id(kid), validparents[0], kid],
+                                   [samples[ validparents[0] ]['GT'], p2, samples[kid]['GT'] ]
+                                   )
+            mi.sa.sa_collection[kid].tallySA['vp' + str(len(validparents)) ] += 1
+    return mend_pairs, mend_error
+#BI ALLELIC
 
 
 def check_mendelian_errors(prefix, rec):
