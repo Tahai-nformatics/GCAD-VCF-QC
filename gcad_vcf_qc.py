@@ -592,7 +592,7 @@ def main():
                 write_subset_stats_multiallelic(prefix_companions, rec, subset, maf ,vf,passing_d,failing_d,missing,gt_failed,clean_passing_d,sum_clean,depth_sum,ab_het,mend_pairs,mend_errors,scores)
 
         
-            find_s_d_multiallelic(clean_passing_d,rec.samples,passing_d)
+            find_s_d_multiallelic(clean_passing_d,rec.samples)
         
         end = time.time()
         print("total_time:{0:.2f}".format(end - start))
@@ -765,7 +765,7 @@ def calculate_subgroup_scores(subset, subg, subg_cntl):
 
 
 
-def find_s_d_multiallelic(clean_passing_d, samples,passing_d): #het_gts):
+def find_s_d_multiallelic(clean_passing_d, samples): #het_gts):
     
     total_obs_homo_ref = list(clean_passing_d['obs_homo1'].values())[0]
     total_obs_het = sum(list(clean_passing_d['obs_het'].values()))
@@ -777,25 +777,25 @@ def find_s_d_multiallelic(clean_passing_d, samples,passing_d): #het_gts):
         maf = (total_obs_het + 2 * total_obs_homo_alt) / (2 * total_obs)
     if maf <= 0.5:
         if total_obs_het == 1 and total_obs_homo_alt == 0:
-            idv = find_singleton_multiallelic(samples,passing_d['obs_het'].keys())
+            idv = find_singleton_multiallelic(samples,clean_passing_d['obs_het'].keys())
             if idv:
                 mi.sa.sa_collection[idv].tallySA['singleton'] += 1
         elif total_obs_homo_alt == 1 and total_obs_het == 0:
-            idv = find_private_doubleton_multiallelic(samples,passing_d['obs_homo2'].keys())
+            idv = find_private_doubleton_multiallelic(samples,clean_passing_d['obs_homo2'].keys())
             if idv: mi.sa.sa_collection[idv].tallySA['p_dblton'] +=1
         elif total_obs_het == 2 and total_obs_homo_alt == 0:
-            dbltons = find_doubletons_multiallelic(samples, passing_d['obs_het'].keys())
+            dbltons = find_doubletons_multiallelic(samples, clean_passing_d['obs_het'].keys())
             for idv in dbltons:
                 mi.sa.sa_collection[idv].tallySA['doubleton'] +=1
     else:
         if total_obs_het == 1 and total_obs_homo_ref == 0:
-            idv = find_singleton_multiallelic(samples, passing_d['obs_het'].keys())
+            idv = find_singleton_multiallelic(samples, clean_passing_d['obs_het'].keys())
             mi.sa.sa_collection[idv].tallySA['singleton'] += 1
         elif total_obs_homo_ref == 1 and total_obs_het == 0:
-            idv = find_private_doubleton_multiallelic(samples, passing_d['obs_homo1'].keys())
+            idv = find_private_doubleton_multiallelic(samples, clean_passing_d['obs_homo1'].keys())
             if idv: mi.sa.sa_collection[idv].tallySA['p_dblton'] += 1
         elif total_obs_het == 2 and total_obs_homo_ref == 0:
-            dbltons = find_doubletons_multiallelic(samples,passing_d['obs_het'].keys())
+            dbltons = find_doubletons_multiallelic(samples,clean_passing_d['obs_het'].keys())
             for idv in dbltons:
                 mi.sa.sa_collection[idv].tallySA['doubleton'] += 1
 

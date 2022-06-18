@@ -176,8 +176,6 @@ class SampleAnnotation:
 def createSampleAnnotation(fam):
     """
     """
-    samplle_id = 0
-    subjject_id = 0
     delimiter = '\t'
     # Check number of columns
     with open(fam, 'r') as fam_file:
@@ -198,7 +196,6 @@ def createSampleAnnotation(fam):
 
     # Read FAM file once to get all sample names
     with open(fam, 'r') as fam_file:
-#        print('opening fam file')
         for sm in map(SampleFamDetail._make, csv.reader(fam_file, delimiter=delimiter)):
 
             # check values
@@ -227,7 +224,6 @@ def createSampleAnnotation(fam):
     for blk in to_delete:
         print("[FAM] Excluding from HWE {}:{}, too few samples ({})".format(blk[0], blk[1], sa.subsets[ blk[0] ][ blk[1] ] ) )
         #del sa.subsets[ blk[0] ][ blk[1] ]
-    #print('len is ',len(sa.id_list), len(sa.subject_list)) 
     return
 
 # Globals
