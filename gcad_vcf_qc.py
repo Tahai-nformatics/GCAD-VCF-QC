@@ -333,16 +333,17 @@ def write_indiv_summary_multiallelic(prefix, isWES):
     return
 
 
-
 def write_indiv_summary(prefix, isWES):
     """
     """
-    print('WRITING NEW ONE')
     outfile = '{}.tsv'.format(prefix)
 
     with open(outfile, 'w') as csvfile:
-        fieldnames = ['SampleID','SEX', 'Pass', 'Fail','Missing', 'Set_Missing',
-                      'Singleton','Private_Doubleton','Doubleton','HetHom','IndMeanDepth']
+        fieldnames = ['SampleID','SEX',
+                      'total_nRR','total_nRA','total_nAA','Missing','Set_Missing',
+                      'Singleton','Private_Doubleton','Doubleton','HetHom',
+                      'Ti','Tv','TiTvRatio','IndDepthSum','IndMeanDepth',
+                      '1P_MI','2P_MI','MI_pairs','Non_Missing_Indels',]
 
         if isWES:
            fieldnames.extend(['Ti_WES','Tv_WES','TiTvRatio_WES'])
@@ -364,17 +365,20 @@ def write_indiv_summary(prefix, isWES):
             good_gt = val.tallySA[(0,0)] + good_het_gt + val.tallySA[(1,1)]
             all_gt = good_gt + val.tallySA[-9]
             mean_depth = val.dp_total / all_gt if all_gt else 0
+
             row = {'SampleID': indiv, 'SEX': val.details_dict.SEX,
-                    'Pass': ",".join([str(val.tallySA['passing_obs_homo1']),str(val.tallySA['passing_obs_het']),str(val.tallySA['passing_obs_homo2'])]),
-                    'Fail':  ",".join([str(val.tallySA['failing_obs_homo1']),str(val.tallySA['failing_obs_het']),str(val.tallySA['failing_obs_homo2'])]),
-                    'Missing': val.tallySA[(None,None)],
-                    'Set_Missing': val.tallySA[-9],
-                    'Singleton': val.tallySA['singleton'],
-                    'Private_Doubleton': val.tallySA['p_dblton'],
-                    'Doubleton': val.tallySA['doubleton'],
-                    'HetHom':"{0:.5f}".format(het_hom),
-                    'IndMeanDepth':"{0:.5f}".format(mean_depth),
-                    }
+                            'total_nRR': val.tallySA[(0,0)],'total_nRA': good_het_gt,'total_nAA': val.tallySA[(1,1)],
+                            'Missing': val.tallySA[(None,None)],'Set_Missing': val.tallySA[-9],
+                            'Singleton': val.tallySA['singleton'],
+                            'Private_Doubleton': val.tallySA['p_dblton'],
+                            'Doubleton': val.tallySA['doubleton'],
+                            'HetHom':"{0:.5f}".format(het_hom),
+                            'Ti': val.tallySA['ti'], 'Tv': val.tallySA['tv'], 'TiTvRatio':"{0:.5f}".format(ti_tv),
+                            'IndDepthSum': val.dp_total,
+                            'IndMeanDepth':"{0:.5f}".format(mean_depth),
+                            '1P_MI': val.tallySA['vp1'],'2P_MI':val.tallySA['vp2'],'MI_pairs':val.tallySA['mend_pair'],
+                            'Non_Missing_Indels': val.tallySA['non_missing_indel']
+                            }
 
             # WES - TiTv
             if isWES:
@@ -385,7 +389,6 @@ def write_indiv_summary(prefix, isWES):
 
             writer.writerow(row)
     return
-
 
 def delete_previous_outputs(out_dir, prefix, subsets):
     """
