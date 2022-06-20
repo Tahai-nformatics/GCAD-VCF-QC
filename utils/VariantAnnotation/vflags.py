@@ -14,127 +14,6 @@ exons = dict()
 
 
 
-
-def calcVA_multiallelic(snp_samples,rec_details,subset):
-    vf = []
-    ab_het = 0
-    total = 0
-    snp_record_filter = rec_details['filter']
-    #allele_list = [n for n in range(0,N+1)]
-# VFLAG 1
-    if 'PASS' in snp_record_filter:
-        pass_snv = 1
-    else:
-        for k in snp_record_filter.keys():
-            if k.startswith('VQSRTranche'): # VQSRTrancheSNP99.80to99.90; VQSRTrancheINDEL
-                low = None
-                if k.startswith('VQSRTrancheSNP'):
-                    low, high = k.replace('VQSRTrancheSNP','').split('to')
-                elif k.startswith('VQSRTrancheINDEL'):
-                    low, high = k.replace('VQSRTrancheINDEL','').split('to')
-
-                if low is not None:
-                    if float(low) >= cfg.minTranche:
-                        vf.append(1)
-                        pass_snv = 0
-                    else:
-                        pass_snv = 1
-
-    #Skipping VLAG 11 (WES)
-
-
-    [passing_d,failing_d,missing,gt_failed,clean_passing_d,depth_sum,abhet_AD_list,abhet_DP_list,subg,subg_c,zhet_dict,zhet_sample_counts]= count_gt_multiallelic(snp_samples,rec_details)
-    obs_hom1 = sum(list(passing_d['obs_homo1'].values()))
-    obs_het = sum(list(passing_d['obs_het'].values()))
-    obs_hom2 = sum(list(passing_d['obs_homo2'].values()))
-
-    ab_het = [i for i in range(len(abhet_AD_list))]
-    total = obs_hom1 + obs_het + obs_hom2 + missing + gt_failed
-    non_missing = obs_hom1+obs_het+obs_hom2
-    total_genotypes = non_missing + gt_failed
-    N = len(rec_details['alt'])
-    allele_list = [n for n in range(0,N+1)]
-    maf = []
-    sum_clean = sum(list(clean_passing_d['obs_homo1'].values())) + sum(list(clean_passing_d['obs_het'].values())) + sum(list(clean_passing_d['obs_homo2'].values()))
-    #Calculate MAF before vflag assigned to Passing_d and samples fail
-    het_maf_dict = {}
-    homo_maf_dict = {}
-    ac_ref_het = 0
-    temp = sum_clean *2
-    if temp >0:
-        for allele in allele_list:
-            het_maf_dict[allele] = 0
-            homo_maf_dict[allele] = 0
-            for key in passing_d['obs_het']:
-                if allele in key[0]:
-                    ac_ref_het += 1
-                    het_maf_dict[allele] += passing_d['obs_het'][key]
-            for key in passing_d['obs_homo2']:
-                if allele in key[0]:
-                    homo_maf_dict[allele] += passing_d['obs_homo2'][key]
-                else:
-                    continue
-            if allele == 0:
-                maf.append(float(("{0:.5f}".format((het_maf_dict[allele] + (2 * sum(list(passing_d['obs_homo1'].values())))) / temp))))
-            elif allele!=0:
-                maf.append(("{0:.5f}".format((het_maf_dict[allele] + (2 * homo_maf_dict[allele])) / temp)))
-
-
-    # VFLAG 2
-    if (missing + gt_failed) == total:
-        vf.append(2)
-    # VFLAG 3
-    if obs_het ==0:
-        if obs_hom1 ==0 or obs_hom2 ==0:
-            ct =0
-            for i in list(clean_passing_d['obs_homo2'].values()):
-                if int(i) > 0:
-                    ct +=1
-            if ct >=2:
-                pass
-            else:
-                vf.append(3)
-
-    #VFLAG 4
-    callrate = 1 - (missing + gt_failed) / total
-    if callrate <= (1-cfg.miss_rate):
-        vf.append(4)
-    # VFlag 5:
-    if total_genotypes > 0:
-        if (depth_sum / total_genotypes) > cfg.max_dp:
-            vf.append(5)
-    if sum(abhet_DP_list) > 0:
-    #   print('abhet_ad_list is: ', abhet_AD_list)
-        for item in ab_het:
-            if abhet_DP_list[item] == 0:
-                ab_het[item] = '.'
-            else:
-                ab_het[item] = "{0:.15f}".format(abhet_AD_list[item] / abhet_DP_list[item])
-                if ab_het[item] == '0.0000':
-                    ab_het[item] = '.'
-    else:
-        ab_het = '.'
-
-    if len(vf) < 1:
-        vf.append(0)
-    else:   #Fail the passing_d ie: Use Clean counts- Vflags present
-        for classification in passing_d.keys():
-            for key, values in passing_d[classification].items():
-                passing_d[classification][key] = 0
-#passing_d[classification][key] += 1
-   # print(*ab_het)
-    for item in range(len(ab_het)):
-        try:
-            ab_het[item] = float(ab_het[item])
-        except:
-            pass
-
-    return [vf,maf,passing_d,failing_d,missing,gt_failed,clean_passing_d,sum_clean,depth_sum,ab_het,subg,subg_c,zhet_dict,zhet_sample_counts]
-
-
-
-
-
 def calcVA(snp_samples, rec_details, subset):
     """
     calcVA - get Variant Annotation; VFLAGS and ABHet
@@ -302,6 +181,126 @@ def calcVA(snp_samples, rec_details, subset):
         ab_het = 'NA'
 
     return [vf, ab_het, pass_cnt, fail_cnt, missing, gt_failed, depth_sum, clean_obs, subg, subg_c]
+
+
+def calcVA_multiallelic(snp_samples,rec_details,subset):
+    """
+    """
+
+    vf = []
+    ab_het = 0
+    total = 0
+    snp_record_filter = rec_details['filter']
+
+# VFLAG 1
+    if 'PASS' in snp_record_filter:
+        pass_snv = 1
+    else:
+        for k in snp_record_filter.keys():
+            if k.startswith('VQSRTranche'): # VQSRTrancheSNP99.80to99.90; VQSRTrancheINDEL
+                low = None
+                if k.startswith('VQSRTrancheSNP'):
+                    low, high = k.replace('VQSRTrancheSNP','').split('to')
+                elif k.startswith('VQSRTrancheINDEL'):
+                    low, high = k.replace('VQSRTrancheINDEL','').split('to')
+
+                if low is not None:
+                    if float(low) >= cfg.minTranche:
+                        vf.append(1)
+                        pass_snv = 0
+                    else:
+                        pass_snv = 1
+
+    #Skipping VLAG 11 (WES)
+
+
+    [passing_d,failing_d,missing,gt_failed,clean_passing_d,depth_sum,abhet_AD_list,abhet_DP_list,subg,subg_c,zhet_dict,zhet_sample_counts]= count_gt_multiallelic(snp_samples,rec_details)
+    obs_hom1 = sum(list(passing_d['obs_homo1'].values()))
+    obs_het = sum(list(passing_d['obs_het'].values()))
+    obs_hom2 = sum(list(passing_d['obs_homo2'].values()))
+
+    ab_het = [i for i in range(len(abhet_AD_list))]
+    total = obs_hom1 + obs_het + obs_hom2 + missing + gt_failed
+    non_missing = obs_hom1+obs_het+obs_hom2
+    total_genotypes = non_missing + gt_failed
+    N = len(rec_details['alt'])
+    allele_list = [n for n in range(0,N+1)]
+    maf = []
+    sum_clean = sum(list(clean_passing_d['obs_homo1'].values())) + sum(list(clean_passing_d['obs_het'].values())) + sum(list(clean_passing_d['obs_homo2'].values()))
+    
+    #Calculate MAF before vflag assigned to Passing_d and samples fail
+    het_maf_dict = {}
+    homo_maf_dict = {}
+    ac_ref_het = 0
+    temp = sum_clean *2
+    if temp >0:
+        for allele in allele_list:
+            het_maf_dict[allele] = 0
+            homo_maf_dict[allele] = 0
+            for key in passing_d['obs_het']:
+                if allele in key[0]:
+                    ac_ref_het += 1
+                    het_maf_dict[allele] += passing_d['obs_het'][key]
+            for key in passing_d['obs_homo2']:
+                if allele in key[0]:
+                    homo_maf_dict[allele] += passing_d['obs_homo2'][key]
+                else:
+                    continue
+            if allele == 0:
+                maf.append(float(("{0:.5f}".format((het_maf_dict[allele] + (2 * sum(list(passing_d['obs_homo1'].values())))) / temp))))
+            elif allele!=0:
+                maf.append(("{0:.5f}".format((het_maf_dict[allele] + (2 * homo_maf_dict[allele])) / temp)))
+
+
+    # VFLAG 2
+    if (missing + gt_failed) == total:
+        vf.append(2)
+    # VFLAG 3
+    if obs_het ==0:
+        if obs_hom1 ==0 or obs_hom2 ==0:
+            ct =0
+            for i in list(clean_passing_d['obs_homo2'].values()):
+                if int(i) > 0:
+                    ct +=1
+            if ct >=2:
+                pass
+            else:
+                vf.append(3)
+
+    #VFLAG 4 
+    callrate = 1 - (missing + gt_failed) / total
+    if callrate <= (1-cfg.miss_rate):
+        vf.append(4)
+    # VFlag 5:
+    if total_genotypes > 0:
+        if (depth_sum / total_genotypes) > cfg.max_dp:
+            vf.append(5)
+    if sum(abhet_DP_list) > 0:
+        for item in ab_het:
+            if abhet_DP_list[item] == 0:
+                ab_het[item] = '.'
+            else:
+                ab_het[item] = "{0:.15f}".format(abhet_AD_list[item] / abhet_DP_list[item])
+                if ab_het[item] == '0.0000':
+                    ab_het[item] = '.'
+    else:
+        ab_het = '.'
+
+    if len(vf) < 1:
+        vf.append(0)
+    else:   #Fail the passing_d ie: Use Clean counts- Vflags present
+        for classification in passing_d.keys():
+            for key, values in passing_d[classification].items():
+                passing_d[classification][key] = 0
+#passing_d[classification][key] += 1
+   # print(*ab_het)
+    for item in range(len(ab_het)):
+        try:
+            ab_het[item] = float(ab_het[item])
+        except:
+            pass
+
+    return [vf,maf,passing_d,failing_d,missing,gt_failed,clean_passing_d,sum_clean,depth_sum,ab_het,subg,subg_c,zhet_dict,zhet_sample_counts]
 
 def check_inside_exon(pos, contig):
    """
