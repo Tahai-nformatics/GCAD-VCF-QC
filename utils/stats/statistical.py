@@ -25,33 +25,6 @@ def calc_InbreedingCoeff(aa, ab, bb):
     q = 1 - p
     return 1 - ( ab / (2*p*q*N) )
 
-
-
-
-def calc_ExcessHet_multiallelic(alleles,total_obs,het_count,zhet_hom2_count):
-    #alleles=[1342,3,3,2]
-    N = total_obs
-    lower = min(alleles)
-    total_AC = sum(alleles)
-    result = '.'
-    if het_count ==0:
-        result = '-999999'
-    elif het_count == N:
-        result = '999999'
-    elif het_count >0:
-        Ref_Alleles = alleles[0]
-        het2_exp = 1 - ( Ref_Alleles/total_AC)**2
-        for i in alleles[1:]:
-            het2_exp -= (i/total_AC)**2
-   #     print('final het_Exp is: ',het2_exp)
-        het_obs = het_count/total_obs
-        t = het2_exp - het_obs
-        total_cases_ctrls = sum(alleles) - het_count
-        if not het_obs==1.0:
-            result = ( math.sqrt(N * (het2_exp-het_obs)**2 / (het_obs * (1 - het_obs))))  * math.copysign(1.0, -t)
-    return result
-
-
 def calc_ExcessHet(aa, ab, bb):
     """
     ExcessHet - Phred-scaled p-value for exact test of excess heterozygosity
@@ -88,6 +61,28 @@ def calc_ExcessHet(aa, ab, bb):
 
     return [result, maf]
 
+def calc_ExcessHet_multiallelic(alleles,total_obs,het_count,zhet_hom2_count):
+    #alleles=[1342,3,3,2]
+    N = total_obs
+    lower = min(alleles)
+    total_AC = sum(alleles)
+    result = '.'
+    if het_count ==0:
+        result = '-999999'
+    elif het_count == N:
+        result = '999999'
+    elif het_count >0:
+        Ref_Alleles = alleles[0]
+        het2_exp = 1 - ( Ref_Alleles/total_AC)**2
+        for i in alleles[1:]:
+            het2_exp -= (i/total_AC)**2
+   #     print('final het_Exp is: ',het2_exp)
+        het_obs = het_count/total_obs
+        t = het2_exp - het_obs
+        total_cases_ctrls = sum(alleles) - het_count
+        if not het_obs==1.0:
+            result = ( math.sqrt(N * (het2_exp-het_obs)**2 / (het_obs * (1 - het_obs))))  * math.copysign(1.0, -t)
+    return result
 
 def calc_pHWE(aa,ab,bb):
     """

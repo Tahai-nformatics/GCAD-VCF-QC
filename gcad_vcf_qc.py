@@ -6,14 +6,15 @@ from pysam import VariantFile
 
 import csv
 import os
+import copy
 from subprocess import check_output
 
 from collections import namedtuple, OrderedDict, Counter
 import time
 import cProfile
 
-from utils.VariantAnnotation.vflags import calcVA, calcVA_multiallelic, read_target_files, read_exon_file
-from utils.stats.count_gt import is_good_gt, count_gt_multiallelic
+from utils.VariantAnnotation.vflags import calcVA, calcVA_multiallelic, calcVA_chrx, read_target_files, read_exon_file
+from utils.stats.count_gt import is_good_gt, count_gt_multiallelic, count_gt_chrx
 from utils.stats.statistical import calc_ExcessHet, calc_ExcessHet_multiallelic, calc_pHWE
 
 import utils.SampleAnnotation.sample_annotation as mi
@@ -77,6 +78,58 @@ def extract_subsets(fam):
 
     return samples, ct
 
+def extract_subsets_chrx(fam):
+    """
+    extract_subsets - Creates an OrderedDict() where Subset groupings are the key,
+                      values are a set of SampID within it
+    @return Samples Dict per Subset
+    """
+
+    delimiter = '\t'
+    # Check number of columns
+    with open(fam, 'r') as fam_file:
+      first_line = fam_file.readline()
+
+    ncol = first_line.count(delimiter) + 1
+    if ncol == 1:
+      delimiter = ','
+      ncol = first_line.count(delimiter) + 1
+
+    #
+    if ncol == 15:
+       SampleFamDetail = namedtuple('SampleFamDetail',['SampID','FID','SubjID','FA','MO',
+                                                    'SEX','AFF','AD','AGE','ADSPWGS',
+                                                    'Subset','Subgroup','Race_Ethnicity','SeqCtr','ExcludeFromZHet'])
+    elif ncol == 17:
+       SampleFamDetail = namedtuple('SampleFamDetail',['SampID','FID','SubjID','FA','MO',
+                                                    'SEX','AFF','AD','AGE','ADSPWGS',
+                                                    'Subset','Subgroup','Race_Ethnicity','SeqCtr','ExcludeFromZHet',
+                                                    'TargetFile', 'TargetFilePath'])
+    else:
+       raise TypeError("Wrong number of columns")
+
+    samples = OrderedDict()
+    male_samples = OrderedDict()
+    female_samples = OrderedDict()
+    ct = 0
+    with open(fam, 'r') as fam_file:
+        for sm in map(SampleFamDetail._make, csv.reader(fam_file, delimiter=delimiter)):
+          if ncol==15:
+              if  sm.Subset in male_samples:
+                  if sm.SEX == "0":
+                    male_samples[sm.Subset].add(sm.SampID)
+                  elif sm.SEX == "1":
+                    female_samples[sm.Subset].add(sm.SampID)
+              else:
+                  male_samples[sm.Subset] = set()
+                  female_samples[sm.Subset] = set()
+                  if sm.SEX == "0":
+                    male_samples[sm.Subset].add(sm.SampID)
+                  elif sm.SEX == "1":
+                    female_samples[sm.Subset].add(sm.SampID)
+    return male_samples, female_samples
+
+
 
 def write_subset_stats_multiallelic(prefix, rec, subset,maf, vf, passing_d,failing_d, missing,gt_failed,clean_passing_d,sum_clean,depth_sum,ab_het,mend_pairs,mend_errors,scores):
 
@@ -92,7 +145,6 @@ def write_subset_stats_multiallelic(prefix, rec, subset,maf, vf, passing_d,faili
     allele_list = [n for n in range(0,N+1)]
     het_maf_dict = {}
     homo_maf_dict = {}
-    ac_ref_het = 0
     total_genotypes = sum_clean + gt_failed
 #Determine VTYPE
     alts_vtype = []
@@ -260,6 +312,141 @@ def write_subset_stats(prefix, subset, rec, vf, abhet, passing, failing, missing
 
     return
 
+def write_subset_stats_chrx(prefix, rec, subset,vf,passing_d_male,passing_d_female,failing_d_male,failing_d_female,missing,gt_failed,clean_d,sum_clean,depth_sum,ab_het,scores):
+
+    """
+         passing_d = {GT_type: {GT:count}, GT_type: {GT:count}, GT_type: {GT:count}}
+
+         i.e : passing_d = {'obs_homo1': {((0, 0), (0, 0)): 6309}, 'obs_het': {((0, 1), (1, 0)): 0}, 'obs_homo2': {((1, 1), (1, 1)): 0}}
+
+    """
+    rec_details = {'filter': rec.filter, 'ref': rec.ref, 'alt': rec.alts,
+                 'chr': rec.contig, 'pos': rec.pos}
+
+
+    outfile = '{}.{}.tsv'.format(prefix, subset)
+    newfile = not os.path.exists(outfile)
+    callrate = 1 - (missing + gt_failed) / (missing + gt_failed + sum_clean)
+    N = len(rec_details['alt'])
+    allele_list = [n for n in range(0,N+1)]
+    het_maf_dict = {} # dict of het GT and their allele counts
+    homo_maf_dict = {} # dict of homozygous GT and their allele counts
+    maf_male = copy.deepcopy(clean_d['male']) #maf_male Het GT's will be set to 0, and used in maf calculation
+    maf_female = copy.deepcopy(clean_d['female'])
+    maf = []
+    maf_alleles = sum(list(clean_d['male']['obs_homo1'].values())) + 2*sum(list(clean_d['female']['obs_homo1'].values()))        
+    temp = 2 * (sum(list(clean_d['female']['obs_homo1'].values())) + sum(list(clean_d['female']['obs_homo2'].values())) + sum(list(clean_d['female']['obs_het'].values()))) + sum(list(clean_d['male']['obs_homo1'].values())) + sum(list(clean_d['male']['obs_homo2'].values()))
+
+#For MAF calculation, set Male_Passing_Het to 0
+    
+    for k,v in maf_male['obs_het'].items():
+        maf_male['obs_het'][k] = 0
+
+    if temp >0:
+        for allele in allele_list:
+            het_maf_dict[allele] = 0
+            homo_maf_dict[allele] = 0
+            for key_male,key_female in zip(maf_male['obs_het'],maf_female['obs_het']): # i.e key_male = ((0, 1), (1, 0)) ke_male[0] = (0,1)
+                if allele in key_male[0]:
+                    het_maf_dict[allele] += maf_male['obs_het'][key_male]
+                if allele in key_female[0]:
+                    het_maf_dict[allele] += maf_female['obs_het'][key_female]
+            for key_male,key_female in zip(maf_male['obs_homo2'],maf_female['obs_homo2']):
+                if allele in key_male[0]:
+                    homo_maf_dict[allele] += maf_male['obs_homo2'][key_male]
+                if allele in key_female[0]:
+                    homo_maf_dict[allele] += 2*maf_female['obs_homo2'][key_female] #2*maf_female because 2 alleles for female
+                else:
+                    continue
+            if allele == 0:
+                maf.append(float(("{0:.5f}".format((het_maf_dict[allele] + (  maf_alleles)) / temp))))
+            elif allele!=0:
+                maf.append(("{0:.5f}".format((het_maf_dict[allele] + ( homo_maf_dict[allele])) / temp)))
+    """
+    for k,v in maf_male['obs_het'].items():
+        maf_male['obs_het'][k] = 0
+
+    if temp >0:
+        for allele in allele_list:
+            het_maf_dict[allele] = 0
+            homo_maf_dict[allele] = 0
+            for key_male,key_female in zip(maf_male['obs_het'],maf_female['obs_het']):
+                if allele in key_male[0]:
+                    ac_ref_het += 1
+                    het_maf_dict[allele] += maf_male['obs_het'][key_male]
+                if allele in key_female[0]:
+                    ac_ref_het += 1
+                    het_maf_dict[allele] += maf_female['obs_het'][key_female]
+            for key_male,key_female in zip(maf_male['obs_homo2'],maf_female['obs_homo2']):
+                if allele in key_male[0]:
+                    homo_maf_dict[allele] += maf_male['obs_homo2'][key_male]
+                if allele in key_female[0]:
+                    homo_maf_dict[allele] += 2*maf_female['obs_homo2'][key_female] #2*maf_female because 2 alleles for female
+                else:
+                    continue
+            if allele == 0:
+                maf.append(float(("{0:.5f}".format((het_maf_dict[allele] + (  maf_final)) / temp))))
+            elif allele!=0:
+                maf.append(("{0:.5f}".format((het_maf_dict[allele] + ( homo_maf_dict[allele])) / temp)))
+    """
+    print(maf)
+    total_genotypes = sum_clean + gt_failed
+    mean_depth = depth_sum / total_genotypes if total_genotypes else 0
+    with open(outfile, 'a') as csvfile:
+        fieldnames = ['CHR','POS',
+                      'PASS_Homo_Ref','PASS_Het', "PASS_Homo_Alt",
+                      'FAIL_Homo_Ref', 'FAIL_Het', 'FAIL_Homo_Alt',
+                      'MISSING', 'GT_FAILED',
+                      'CLEAN_Homo_Ref', 'CLEAN_Het','CLEAN_Homo_Alt',
+                      'MONO','CALLRATE','CALLBAD','GATKPass',
+                      'Mendelian_Inconsistency','Mend_pairs','propMI','AF','MEAN_DEPTH', 'HI_DEPTH', 'ABHET',
+                      'VFLAGS', 'rsID', 'RefAllele', 'AltAlleles',
+                      'QUAL','FILTER','MaleHet',
+                     ]
+        fieldnames.extend(scores.keys())
+        writer = csv.DictWriter(csvfile, fieldnames=fieldnames , delimiter='\t', lineterminator='\n')
+
+        Pass_Het = ",".join(str(x) for x in passing_d_male['obs_het'].values())
+
+
+        if newfile:
+            writer.writeheader()
+        qual = "{0:.2f}".format(rec.qual) if rec.qual is not None else 'NA'
+        row = {'CHR': rec.contig,
+               'POS': rec.pos,
+
+            #'PASS_Homo_Ref':(list(passing_d_male['obs_homo1'].values())[0], list(passing_d_female['obs_homo1'].values())[0]),
+            #"PASS_Homo_Ref": ";".join(zip(passing_d_male['obs_homo1'].values()[0],passing_d_female['obs_homo1'].values()[0]))
+            'PASS_Homo_Ref':str(list(passing_d_male['obs_homo1'].values())[0])+";"+str(list(passing_d_female['obs_homo1'].values())[0]),
+            "PASS_Het":",".join(str(x) for x in passing_d_male['obs_het'].values())+";"+".".join(str(x) for x in passing_d_female['obs_het'].values()),
+            "PASS_Homo_Alt":",".join(str(x) for x in passing_d_male['obs_homo2'].values())+";"+",".join(str(x) for x in passing_d_female['obs_homo2'].values()),
+            'FAIL_Homo_Ref':",".join(str(x) for x in failing_d_male['obs_homo1'].values())+";"+",".join(str(x) for x in failing_d_female['obs_homo1'].values()),
+            'FAIL_Het':",".join(str(x) for x in failing_d_male['obs_het'].values())+";"+",".join(str(x) for x in failing_d_female['obs_het'].values()),
+            'FAIL_Homo_Alt':",".join(str(x) for x in failing_d_male['obs_homo2'].values())+";"+",".join(str(x) for x in failing_d_female['obs_homo2'].values()),
+            'MISSING': missing,
+            'GT_FAILED':gt_failed,
+
+            'CLEAN_Homo_Ref': ",".join(str(x) for x in clean_d['male']['obs_homo1'].values()) + ";" + ",".join(str(x) for x in clean_d['female']['obs_homo1'].values()),
+            'CLEAN_Het' : str(0) + ";" + ",".join(str(x) for x in clean_d['female']['obs_het'].values()),
+            'CLEAN_Homo_Alt': ",".join(str(x) for x in clean_d['male']['obs_homo2'].values()) + ";" + ",".join(str(x) for x in clean_d['female']['obs_homo2'].values()),
+            'MONO': int(3 in vf),
+            'CALLRATE':"{0:.5f}".format(callrate), 'CALLBAD':int(callrate < (1 - cfg.miss_rate)),
+            'GATKPass': int(1 not in vf),
+            'Mendelian_Inconsistency': '.', 'Mend_pairs':'.', 'propMI':'.',
+            'AF': ",".join(str(x) for x in maf),
+            'MEAN_DEPTH':"{0:.5f}".format(mean_depth), 'HI_DEPTH':int(mean_depth > cfg.max_dp),
+            'ABHET':",".join(str(x) for x in ab_het),
+            'VFLAGS': ",".join(str(x) for x in vf),
+            'rsID': rec.id if rec.id else '.',
+            'RefAllele': rec.ref,
+            'AltAlleles': ",".join(rec.alts),
+            'QUAL':qual,
+            'FILTER':",".join(rec.filter.keys()),
+            'MaleHet': ",".join(str(x) for x in clean_d['male']['obs_het'].values())
+            }
+        row.update(scores)
+        writer.writerow(row)
+
 
 def write_mendelian_errors(prefix, rec, fam_info, genos ): # mmmm, genos
     """
@@ -384,6 +571,56 @@ def write_indiv_summary(prefix, isWES):
             writer.writerow(row)
     return
 
+
+
+def write_indiv_summary_chrx(prefix, isWES):
+    """
+    """
+    outfile = '{}.tsv'.format(prefix)
+
+
+    with open(outfile, 'w') as csvfile:
+        fieldnames = ['SampleID','SEX', 'Pass', 'Fail','Missing', 'Set_Missing',
+                      'Singleton','Private_Doubleton','Doubleton','HetHom','IndMeanDepth']
+
+        if isWES:
+           fieldnames.extend(['Ti_WES','Tv_WES','TiTvRatio_WES'])
+
+        writer = csv.DictWriter(csvfile, fieldnames=fieldnames , delimiter='\t', lineterminator='\n')
+        writer.writeheader()
+
+        abc_order = OrderedDict(sorted(mi.sa.sa_collection.items()))
+        for indiv, val in abc_order.items():
+            het_hom = val.tallySA['passing_obs_het']/val.tallySA['passing_obs_homo2'] if val.tallySA['passing_obs_homo2'] else 0
+
+            # mean_depth
+            good_gt = val.tallySA[(0,0)] + val.tallySA['passing_obs_homo2'] + val.tallySA['passing_obs_het']
+            all_gt = good_gt #+ val.tallySA[-9]
+            mean_depth = val.dp_total / all_gt if all_gt else 0
+
+            row = {'SampleID': indiv, 'SEX': val.details_dict.SEX,
+                    'Pass': ",".join([str(val.tallySA['passing_obs_homo1']),str(val.tallySA['passing_obs_het']),str(val.tallySA['passing_obs_homo2'])]),
+                    'Fail':  ",".join([str(val.tallySA['failing_obs_homo1']),str(val.tallySA['failing_obs_het']),str(val.tallySA['failing_obs_homo2'])]),
+                    'Missing': val.tallySA[(None,None)],
+                    'Set_Missing': val.tallySA[-9],
+                    'Singleton': val.tallySA['singleton'],
+                    'Private_Doubleton': val.tallySA['p_dblton'],
+                    'Doubleton': val.tallySA['doubleton'],
+                    'HetHom':"{0:.5f}".format(het_hom),
+                    'IndMeanDepth':"{0:.5f}".format(mean_depth),
+                    }
+            # WES - TiTv
+            if isWES:
+               ti_tv_wes = val.tallySA['ti_wes'] if val.tallySA['tv_wes'] == 0 else val.tallySA['ti_wes'] / val.tallySA['tv_wes']
+               row['Ti_WES'] = val.tallySA['ti_wes']
+               row['Tv_WES'] = val.tallySA['tv_wes']
+               row['TiTvRatio_WES'] = "{0:.5f}".format(ti_tv_wes)
+            writer.writerow(row)
+    return
+
+
+
+
 def delete_previous_outputs(out_dir, prefix, subsets):
     """
     """
@@ -419,6 +656,7 @@ def main():
     grp_settings.add_argument('--hwe_pval', type=int, help='', default=5e-06, required=False)
     grp_settings.add_argument('--hwe_maf', type=int, help='MAF threshold', default=0.01, required=False)
     grp_settings.add_argument('--is_multiallelic', help='is this vcf multiallelic', action='store_true', required=False)
+    grp_settings.add_argument('--is_chrx', help='is this vcf chrx', action='store_true', required=False)
 
     wes_settings = argparser.add_argument_group(title='WES Settings')
     wes_settings.add_argument('--wes_target', type=str, help='WES Target BED file, e.g. filename:subset ', nargs='*', required=False)
@@ -596,6 +834,34 @@ def main():
             print("rate:{0:.1f}".format(ct/(end - start_p)))
         write_indiv_summary_multiallelic(prefix_indiv, isWES)
 
+    elif args.is_chrx:
+        samplesDict_male,samplesDict_female = extract_subsets_chrx(args.fam)
+
+        for k,v in samplesDict_male.items():
+            samplesDict_male[k] = {'set': set(vcf_in.header.samples) and v,'dict':dict() }
+            set_size += len(samplesDict_male[k]['set'])
+            for k,v in samplesDict_female.items():
+                samplesDict_female[k] = {'set': set(vcf_in.header.samples) and v,'dict':dict() }
+                set_size += len(samplesDict_female[k]['set'])
+        for rec in vcf_in.fetch(rChr, rStart, rEnd):
+            samplesDict_male = gather_intersect_fam_vcf_samples(rec.samples, samplesDict_male)
+            samplesDict_female = gather_intersect_fam_vcf_samples(rec.samples, samplesDict_female)
+            
+            for (subset_male, sm_list_male), (subset_female, sm_list_female) in zip(samplesDict_male.items(), samplesDict_female.items()):
+                rec_details= {'filter': rec.filter, 'ref': rec.ref, 'alt': rec.alts,
+                     'chr': rec.contig, 'pos': rec.pos}
+
+                [vf,passing_d_male,passing_d_female,failing_d_male,failing_d_female,missing,gt_failed,clean_d,sum_clean,depth_sum,ab_het,subg_male,subg_female,subg_c_male,subg_c_female,zhet_dict,zhet_sample_counts] = calcVA_chrx(sm_list_male['dict'],sm_list_female['dict'],rec_details,subset_male,subset_female)
+                scores = calculate_subgroup_scores_chrx(subset_male, subg_male,subg_female, subg_c_male,subg_c_female,zhet_dict,zhet_sample_counts)
+                write_subset_stats_chrx(prefix_companions, rec, subset_male,vf,passing_d_male,passing_d_female,failing_d_male,failing_d_female,missing,gt_failed,clean_d,sum_clean,depth_sum,ab_het, scores)   #No mend_pairs, errors
+            find_s_d_chrx(clean_d, rec.samples)
+        end = time.time()
+        print("total_time:{0:.2f}".format(end - start))
+        print("process_time:{0:.2f}".format(end - start_p))
+        print("total_processed:{}".format(ct))
+        if ct > 0:
+            print("rate:{0:.1f}".format(ct/(end - start_p)))
+        write_indiv_summary_chrx(prefix_indiv, isWES)
 
     else: #Run analysis on biallelic chromosome
     # loop over each variant in VCF
@@ -755,6 +1021,43 @@ def calculate_subgroup_scores(subset, subg, subg_cntl):
 
     return scores
 
+def calculate_subgroup_scores_chrx(subset, subg_male,subg_female, subg_cntl_male,subg_cntl_female,zhet_dict,zhet_sample_counts):
+    """ calculate_subgroup_scores - generates nClean, Zhet, and pHWE for subgroups
+                                    added to TAGs within the INFO field. pHWE-subgroup has
+                                    the following criteria, (1) must have N >= 5,
+                                    (2) must only use data from controls within the subgroup
+
+        @return scores - dict() of the added calculations
+    """
+    scores = OrderedDict()
+
+    if mi.sa.get_divide():
+      subset = subset.split('-')[0]
+
+    for k in sorted(mi.sa.subsets[subset]):
+        val_male = subg_male[k]
+        val_female = subg_female[k]
+        zhet_val = zhet_dict[k]
+        val_cntl_male = subg_cntl_male[k]
+        val_cntl_female = subg_cntl_female[k]
+        total_cntls = [x + y for x,y in zip(val_cntl_male,val_cntl_female)]
+        total_obs_male = sum([x + y for x,y in zip(subg_male[k],subg_cntl_male[k])])
+        total_obs_female = sum([x + y for x,y in zip(subg_female[k],subg_cntl_female[k])])
+        total_obs = total_obs_male + total_obs_female
+        zhet_count = zhet_sample_counts[k][0]
+        zhet_hom2_count = zhet_sample_counts[k][1]
+        scores['nClean_' + k] = sum(val_male) # ",".join(map(str,val)),
+        scores['nClean_' + k] = ",".join((str(val_male[0]), str(val_male[2]))) + ',' + ",".join(map(str,val_female)) + ';' + ",".join((str(val_cntl_male[0]), str(val_cntl_male[2]))) + "," + ",".join(map(str,val_cntl_female))
+        scores['Zhet_' + k] = calc_ExcessHet_multiallelic(zhet_val,total_obs_female,zhet_count,zhet_hom2_count)
+        scores['pHWE_' + k] = calc_pHWE(*val_cntl_female) if sum(val_cntl_female) >= 5 else '.'
+        if type(scores['Zhet_' + k]) == float:
+            scores['Zhet_' + k] = "{0:.5f}".format(scores['Zhet_' + k])
+        if type(scores['pHWE_' + k]) == float:
+            if scores['pHWE_' + k] >= 0.000001:
+                scores['pHWE_' + k] = "{0:.12f}".format(scores['pHWE_' + k])
+            else:
+                pass
+    return scores
 
 
 def find_s_d_multiallelic(clean_passing_d, samples): #het_gts):
@@ -822,6 +1125,45 @@ def find_s_d(total_obs, samples):
             dbltons = find_doubletons(samples)
             for idv in dbltons:
                 mi.sa.sa_collection[idv].tallySA['doubleton'] += 1
+
+
+def find_s_d_chrx(clean_d, samples): #het_gts):
+    maf = 0
+    
+    total_obs = sum(list(clean_d['male']['obs_homo1'].values())) + sum(list(clean_d['female']['obs_homo1'].values())) + sum(list(clean_d['female']['obs_het'].values())) + sum(list(clean_d['male']['obs_homo2'].values())) + sum(list(clean_d['female']['obs_homo2'].values()))
+    total_obs_homo_ref =  sum(list(clean_d['male']['obs_homo1'].values())) + sum(list(clean_d['female']['obs_homo1'].values()))
+    total_obs_het = sum(list(clean_d['female']['obs_het'].values()))
+    total_obs_homo_alt =  sum(list(clean_d['male']['obs_homo2'].values())) + sum(list(clean_d['female']['obs_homo2'].values()))
+
+    if total_obs > 0:
+        maf = (total_obs_het + (2 * total_obs_homo_alt)) / (2 * total_obs)
+    if maf <= 0.5:
+        # singleton
+        if total_obs_het == 1 and total_obs_homo_alt == 0:
+            idv = find_singleton_multiallelic(samples,clean_d['female']['obs_het'].keys())
+            if idv:
+                mi.sa.sa_collection[idv].tallySA['singleton'] += 1
+        elif total_obs_homo_alt == 1 and total_obs_het == 0:
+            idv = find_private_doubleton_multiallelic(samples,clean_d['female']['obs_homo2'].keys())
+
+            if idv: mi.sa.sa_collection[idv].tallySA['p_dblton'] +=1
+        elif total_obs_het == 2 and total_obs_homo_alt == 0:
+            dbltons = find_doubletons_multiallelic(samples, clean_d['female']['obs_het'].keys())
+            for idv in dbltons:
+                mi.sa.sa_collection[idv].tallySA['doubleton'] +=1
+    else:
+        if total_obs_het == 1 and total_obs_homo_ref == 0:
+            idv = find_singleton_multiallelic(samples, clean_d['female']['obs_het'].keys())
+            mi.sa.sa_collection[idv].tallySA['singleton'] += 1
+        elif total_obs_homo_ref == 1 and total_obs_het == 0:
+            idv = find_private_doubleton_multiallelic(samples, clean_d['female']['obs_homo1'].keys())
+            if idv: mi.sa.sa_collection[idv].tallySA['p_dblton'] += 1
+        elif total_obs_het == 2 and total_obs_homo_ref == 0:
+            dbltons = find_doubletons_multiallelic(samples,clean_d['female']['obs_het'].keys())
+            for idv in dbltons:
+                mi.sa.sa_collection[idv].tallySA['doubleton'] += 1
+
+
 
 def find_singleton_multiallelic(samples, het_alleles):
     for k, sm in samples.items():

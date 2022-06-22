@@ -3,9 +3,9 @@
 import config as cfg
 import csv
 import copy
-#from utils.stats.statistical import calc_ExcessHet, calc_pHWE
-from utils.stats.count_gt import count_gt
-from utils.stats.count_gt import count_gt_multiallelic
+from scipy.stats import binom
+import scipy.stats as stats
+from utils.stats.count_gt import count_gt, count_gt_multiallelic, count_gt_chrx
 # global dictionary containing target intervals used in WES QC
 targets = dict()
 
@@ -301,6 +301,129 @@ def calcVA_multiallelic(snp_samples,rec_details,subset):
             pass
 
     return [vf,maf,passing_d,failing_d,missing,gt_failed,clean_passing_d,sum_clean,depth_sum,ab_het,subg,subg_c,zhet_dict,zhet_sample_counts]
+
+
+
+
+
+
+def calcVA_chrx(male_snp_samples,female_snp_samples,rec_details,male_subset,female_subset):
+    vf = []
+    ab_het = 0
+    total = 0
+    snp_record_filter = rec_details['filter']
+
+# VFLAG 1
+    if 'PASS' in snp_record_filter:
+        pass_snv = 1
+    else:
+        for k in snp_record_filter.keys():
+            if k.startswith('VQSRTranche'): # VQSRTrancheSNP99.80to99.90; VQSRTrancheINDEL
+                low = None
+                if k.startswith('VQSRTrancheSNP'):
+                    low, high = k.replace('VQSRTrancheSNP','').split('to')
+                elif k.startswith('VQSRTrancheINDEL'):
+                    low, high = k.replace('VQSRTrancheINDEL','').split('to')
+
+                if low is not None:
+                    if float(low) >= cfg.minTranche:
+                        vf.append(1)
+                        pass_snv = 0
+                    else:
+                        pass_snv = 1
+    #Skipping VLAG 11 (WES)
+    [passing_d_male,failing_d_male,passing_d_female,failing_d_female,missing,gt_failed,clean_d,depth_sum,abhet_AD_list,abhet_DP_list,subg_male,subg_female,subg_c_male,subg_c_female,zhet_dict,zhet_sample_counts]= count_gt_chrx(male_snp_samples,female_snp_samples,rec_details)
+#    print(sum(clean_homo_ref))
+
+    ab_het = [i for i in range(len(abhet_AD_list))]
+    obs_hom1_male = sum(list(passing_d_male['obs_homo1'].values()))
+    obs_hom1_female = sum(list(passing_d_female['obs_homo1'].values()))
+    obs_het_male = sum(list(passing_d_male['obs_het'].values()))
+    obs_het_female = sum(list(passing_d_female['obs_het'].values()))
+    obs_hom2_male = sum(list(passing_d_male['obs_homo2'].values()))
+    obs_hom2_female = sum(list(passing_d_female['obs_homo2'].values()))
+    sum_clean = 0
+    total_genotypes = total - missing
+
+    #Add All Non-Male_Het GT's to sum_Clean
+    for key1,key2 in zip(clean_d['male'].keys(),clean_d['female'].keys()): #obs_hom1, obs_het, obs_hom2
+        if key1 != 'obs_het':
+            for val1,val2 in zip(clean_d['male'][key1].values(), clean_d['female'][key2].values()): #Genotypes 
+                sum_clean += val1 + val2                   #add values to sum_clean
+        else: #Add female Het GT's
+            for value in clean_d['female'][key1].values(): #Genotypes
+                sum_clean += value
+
+    # VFLAG 2
+    if (missing + gt_failed) == total:
+        vf.append(2)
+    # VFLAG 3
+#    total_obs_het = obs_het_male + obs_het_female
+
+    total_obs_hom1 = obs_hom1_male + obs_hom1_female
+    total_obs_hom2 = obs_hom2_male + obs_hom2_female
+    if obs_het_female ==0:
+        if total_obs_hom1 ==0 or total_obs_hom2 ==0:
+            ct =0
+            for i in list(clean_d['male']['obs_homo2'].values()):
+                if int(i) > 0:
+                    ct +=1
+            if ct >=2:
+                pass
+            else:
+                vf.append(3)
+    total = missing + gt_failed + sum_clean
+    #VFLAG 4
+    val1 = (missing + gt_failed + sum_clean)
+    callrate = 1 - (missing + gt_failed) / total
+    if callrate <= (1-cfg.miss_rate):
+
+        vf.append(4)
+    # VFlag 5:
+    if total_genotypes > 0:
+        if (depth_sum / total_genotypes) > cfg.max_dp:
+            vf.append(5)
+    if sum(abhet_DP_list) > 0:
+    #   print('abhet_ad_list is: ', abhet_AD_list)
+        for item in ab_het:
+            if abhet_DP_list[item] == 0:
+                ab_het[item] = '.'
+            else:
+                ab_het[item] = "{0:.15f}".format(abhet_AD_list[item] / abhet_DP_list[item])
+                if ab_het[item] == '0.0000':
+                    ab_het[item] = '.'
+    else:
+        ab_het = '.'
+    #VLFAG 7 if any Male_Het GT is > 6 then set variant to VFLAG 7
+    t=0.0001 #Prob of false positive
+    e=0.0001 #error rate
+    N= passing_d_male['obs_het'].values()
+    N = len(male_snp_samples)
+    c = stats.binom.ppf((1-t),N,e)
+    # qbinom((1-t),N,e) #gives number c such that P(bin>c)<t. We reject a position if #male hets > c (strictly greater than)
+    if passing_d_male['obs_het'][((0, 1), (1, 0))] > c:
+        vf.append(7)
+
+#Add the Male_Hets which "passed" to failing_d_male['obs_het'] and add that to gt_failed
+    if len(vf) < 1:
+        vf.append(0)
+    else:
+        for classification in passing_d_male.keys():
+            for key, values in passing_d_male[classification].items():
+                passing_d_male[classification][key] = 0
+        for classification in passing_d_female.keys():
+            for key, values in passing_d_female[classification].items():
+                passing_d_female[classification][key] = 0
+    for item in range(len(ab_het)):
+        try:
+            ab_het[item] = float(ab_het[item])
+        except:
+            pass
+    return [vf,passing_d_male,passing_d_female,failing_d_male,failing_d_female,missing,gt_failed,clean_d,sum_clean,depth_sum,ab_het,subg_male,subg_female,subg_c_male,subg_c_female,zhet_dict,zhet_sample_counts]
+
+
+
+
 
 def check_inside_exon(pos, contig):
    """
