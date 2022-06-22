@@ -209,8 +209,6 @@ def count_gt_multiallelic(samples,rec_details):
         #Increase GT Counts if GT found in sample
         for classification in passing_d.keys():
             for key, values in passing_d[classification].items():
-                #print(key)
-                #print(sm['GT'])
                 if sm['GT'] in key:
                     passing_d[classification][key] += 1
                     if classification == 'obs_homo1':
@@ -221,9 +219,7 @@ def count_gt_multiallelic(samples,rec_details):
                         subgroup_counts, subgroup_counts_cntrls = increment_subgroup(k, 0, subgroup_counts, subgroup_counts_cntrls)
 
                     elif classification == 'obs_het':
-                        #zhet_sample_counts[subgroup] += 1
                         zhet_sample_counts[subgroup][0] += 1
-                        #zhet_count += 1
                         zhet_dict[subgroup][sm['GT'][0]] +=1
                         zhet_dict[subgroup][sm['GT'][1]] +=1
                         if 0 in sm['GT']:
@@ -232,30 +228,24 @@ def count_gt_multiallelic(samples,rec_details):
                             mi.sa.sa_collection[k].tallySA['passing_obs_homo2'] += 1
 
                         if mi.sa.sa_collection[k].is_control():
-                            #zhet_sample_counts[subgroup] += 1
-                            #zhet_count +=1
                             zhet_sample_counts[subgroup][0] += 1
                             zhet_dict[subgroup][sm['GT'][0]] +=1
                             zhet_dict[subgroup][sm['GT'][1]] +=1
 
-                        if str(sm['GT'][0]) != '0' and str(sm['GT'][1]) != '0':
-                            #print('EXCLUSION' ,sm['GT'])    
+                        if str(sm['GT'][0]) != '0' and str(sm['GT'][1]) != '0':  
                             subgroup_counts, subgroup_counts_cntrls = increment_subgroup(k, 2, subgroup_counts, subgroup_counts_cntrls)
                         else:
                             subgroup_counts, subgroup_counts_cntrls = increment_subgroup(k, 1, subgroup_counts, subgroup_counts_cntrls)
                     elif classification == 'obs_homo2':
                         zhet_dict[subgroup][sm['GT'][1]] +=2
-                        #zhet_hom2_count +=1
                         zhet_sample_counts[subgroup][1] += 1
                         subgroup_counts, subgroup_counts_cntrls = increment_subgroup(k, 2, subgroup_counts, subgroup_counts_cntrls)
                         mi.sa.sa_collection[k].tallySA['passing_obs_homo2'] += 1
                         if mi.sa.sa_collection[k].is_control():
-                            #zhet_hom2_count += 1
                             zhet_sample_counts[subgroup][1] += 1
                             zhet_dict[subgroup][sm['GT'][1]] +=2
                     else:
                         print('couldnot find', classification)
-        #print('checking in het')
         for het_gt in passing_d['obs_het']:
             if sm['GT'] in het_gt:
                 for allele in sm['GT']:   # For ABHET Calculations:
@@ -362,9 +352,7 @@ def count_gt_chrx(male_samples,female_samples,rec_details):
                     passing_d_male[classification][key] += 1
                     if classification == 'obs_homo1':
                         mi.sa.sa_collection[k].tallySA['passing_'+ classification] += 1
-                        #tallyPassingSample(k,sm)
                         if mi.sa.sa_collection[k].is_control():
-                        #    zhet_dict[subgroup][0] +=2
                             pass
                         subgroup_counts_male, subgroup_counts_cntrls_male = increment_subgroup(k, 0, subgroup_counts_male, subgroup_counts_cntrls_male)
 
@@ -380,7 +368,6 @@ def count_gt_chrx(male_samples,female_samples,rec_details):
                         else:
                             subgroup_counts_male, subgroup_counts_cntrls_male = increment_subgroup(k, 1, subgroup_counts_male, subgroup_counts_cntrls_male)
                     elif classification == 'obs_homo2':
-                        #tallyPassingSample(k,sm)
                         mi.sa.sa_collection[k].tallySA['passing_obs_homo2'] += 1
                         subgroup_counts_male, subgroup_counts_cntrls_male = increment_subgroup(k, 2, subgroup_counts_male, subgroup_counts_cntrls_male)
                         if mi.sa.sa_collection[k].is_control():
@@ -396,8 +383,6 @@ def count_gt_chrx(male_samples,female_samples,rec_details):
             tallyMissingSample(k, sm)
             continue
         try:
-        #    print('trying')
-         #   print(sm['DP'],sm['GQ'])
             if (sm['DP'] < cfg.MINDP or sm['GQ'] < cfg.MINGQ):
                 for classification in failing_d_female.keys():
                     for key, values in failing_d_female[classification].items():
@@ -454,13 +439,11 @@ def count_gt_chrx(male_samples,female_samples,rec_details):
                             zhet_dict[subgroup][sm['GT'][1]] +=1
 
                         if str(sm['GT'][0]) != '0' and str(sm['GT'][1]) != '0':
-                            #print('EXCLUSION' ,sm['GT'])
                             subgroup_counts_female, subgroup_counts_cntrls_female = increment_subgroup(k, 2, subgroup_counts_female, subgroup_counts_cntrls_female)
                         else:
                             subgroup_counts_female, subgroup_counts_cntrls_female = increment_subgroup(k, 1, subgroup_counts_female, subgroup_counts_cntrls_female)
                     elif classification == 'obs_homo2':
                         zhet_dict[subgroup][sm['GT'][1]] +=2
-                        #zhet_hom2_count +=1
                         zhet_sample_counts[subgroup][1] += 1
                         mi.sa.sa_collection[k].tallySA['passing_obs_homo2'] += 1
                         subgroup_counts_female, subgroup_counts_cntrls_female = increment_subgroup(k, 2, subgroup_counts_female, subgroup_counts_cntrls_female)
@@ -469,8 +452,7 @@ def count_gt_chrx(male_samples,female_samples,rec_details):
                             zhet_dict[subgroup][sm['GT'][1]] +=2
                     else:
                         print('couldnot find', classification)
-        #print('checking in het')
-
+                        
         for het_gt in passing_d_male['obs_het']:
             if sm['GT'] in het_gt:
                 for allele in sm['GT']:   # For ABHET Calculations:

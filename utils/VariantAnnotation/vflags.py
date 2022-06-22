@@ -213,7 +213,6 @@ def calcVA_multiallelic(snp_samples,rec_details,subset):
 
     #Skipping VLAG 11 (WES)
 
-
     [passing_d,failing_d,missing,gt_failed,clean_passing_d,depth_sum,abhet_AD_list,abhet_DP_list,subg,subg_c,zhet_dict,zhet_sample_counts]= count_gt_multiallelic(snp_samples,rec_details)
     obs_hom1 = sum(list(passing_d['obs_homo1'].values()))
     obs_het = sum(list(passing_d['obs_het'].values()))
@@ -292,8 +291,6 @@ def calcVA_multiallelic(snp_samples,rec_details,subset):
         for classification in passing_d.keys():
             for key, values in passing_d[classification].items():
                 passing_d[classification][key] = 0
-#passing_d[classification][key] += 1
-   # print(*ab_het)
     for item in range(len(ab_het)):
         try:
             ab_het[item] = float(ab_het[item])
@@ -301,11 +298,6 @@ def calcVA_multiallelic(snp_samples,rec_details,subset):
             pass
 
     return [vf,maf,passing_d,failing_d,missing,gt_failed,clean_passing_d,sum_clean,depth_sum,ab_het,subg,subg_c,zhet_dict,zhet_sample_counts]
-
-
-
-
-
 
 def calcVA_chrx(male_snp_samples,female_snp_samples,rec_details,male_subset,female_subset):
     vf = []
@@ -333,7 +325,6 @@ def calcVA_chrx(male_snp_samples,female_snp_samples,rec_details,male_subset,fema
                         pass_snv = 1
     #Skipping VLAG 11 (WES)
     [passing_d_male,failing_d_male,passing_d_female,failing_d_female,missing,gt_failed,clean_d,depth_sum,abhet_AD_list,abhet_DP_list,subg_male,subg_female,subg_c_male,subg_c_female,zhet_dict,zhet_sample_counts]= count_gt_chrx(male_snp_samples,female_snp_samples,rec_details)
-#    print(sum(clean_homo_ref))
 
     ab_het = [i for i in range(len(abhet_AD_list))]
     obs_hom1_male = sum(list(passing_d_male['obs_homo1'].values()))
@@ -357,9 +348,8 @@ def calcVA_chrx(male_snp_samples,female_snp_samples,rec_details,male_subset,fema
     # VFLAG 2
     if (missing + gt_failed) == total:
         vf.append(2)
+    
     # VFLAG 3
-#    total_obs_het = obs_het_male + obs_het_female
-
     total_obs_hom1 = obs_hom1_male + obs_hom1_female
     total_obs_hom2 = obs_hom2_male + obs_hom2_female
     if obs_het_female ==0:
@@ -373,18 +363,19 @@ def calcVA_chrx(male_snp_samples,female_snp_samples,rec_details,male_subset,fema
             else:
                 vf.append(3)
     total = missing + gt_failed + sum_clean
+    
     #VFLAG 4
     val1 = (missing + gt_failed + sum_clean)
     callrate = 1 - (missing + gt_failed) / total
     if callrate <= (1-cfg.miss_rate):
 
         vf.append(4)
+    
     # VFlag 5:
     if total_genotypes > 0:
         if (depth_sum / total_genotypes) > cfg.max_dp:
             vf.append(5)
     if sum(abhet_DP_list) > 0:
-    #   print('abhet_ad_list is: ', abhet_AD_list)
         for item in ab_het:
             if abhet_DP_list[item] == 0:
                 ab_het[item] = '.'
@@ -394,6 +385,7 @@ def calcVA_chrx(male_snp_samples,female_snp_samples,rec_details,male_subset,fema
                     ab_het[item] = '.'
     else:
         ab_het = '.'
+    
     #VLFAG 7 if any Male_Het GT is > 6 then set variant to VFLAG 7
     t=0.0001 #Prob of false positive
     e=0.0001 #error rate
@@ -420,10 +412,6 @@ def calcVA_chrx(male_snp_samples,female_snp_samples,rec_details,male_subset,fema
         except:
             pass
     return [vf,passing_d_male,passing_d_female,failing_d_male,failing_d_female,missing,gt_failed,clean_d,sum_clean,depth_sum,ab_het,subg_male,subg_female,subg_c_male,subg_c_female,zhet_dict,zhet_sample_counts]
-
-
-
-
 
 def check_inside_exon(pos, contig):
    """
