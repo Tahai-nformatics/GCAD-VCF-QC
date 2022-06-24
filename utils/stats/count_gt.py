@@ -128,19 +128,39 @@ def count_gt(samples, rec_details, in_region):
     return [obs_hom1, obs_hts, obs_hom2, missing, gt_failed, depth_sum, failed, het_ad, het_dp, subgroup_counts, subgroup_counts_cntrls]
 
 def count_gt_multiallelic(samples,rec_details):
+    """
+    count_gt_multiallelic - sample genotype {0/0, 0/1, 0/2, 0/3, 0/4, 0/5, 0/6, 1/1, 1/2 ...}
+            Apply Genotype-level QC: DP<10, GQ<20; set to ./.
+
+    Parameters:
+    samples: samples object
+    rec_details (dict): record details
+
+    Returns:
+    passing_d      (dict): counts of observed passing Homozygous_reference, Heterozygous, Homozygous_alt Genotypes
+    failing_d      (dict): counts of samples's Homozygous_reference, Heterozygous, Homozygous_alt Genotypes not passing minimum DP/GQ 
+    missing         (int): count of samples missing a genotype
+    gt_failed       (int): count of sample's genotype not passing DP/GQ minimum thresholds
+    clean_passing_d (dict): counts of observed passing Homozygous_reference, Heterozygous, Homozygous_alt GTs (Will not be set to 0 in summary.snv output file if vlfags present)
+    depth_sum        (int): sum of read depth for variant, from all passing samples
+    abhet_AD_list   (list): List of allele depth sum for all passing samples per allele
+    abhet_DP_lit    (list): List of sum depth (DP) for all passing samples for all alleles
+    subgroup_counts (list): genotype count by subgroup
+    subgroup_counts_cntrls (list): genotype count by subgroup only on controls
+    zhet_dict          (dict): counts of alleles of subjects and controls
+    zhet_sample_counts (dict): Het and Homozygous_alt counts of subjects and controls
+
+    Also alters global objects: mi.sa.tally
+    """
     N = len(rec_details['alt'])
     allele_list = [n for n in range(0,N+1)]
     #allele_list = [0, 1, 2, 3]
     missing = 0
     depth_sum = 0
-    allele_list_zhet1 = [n for n in range(0,N+1)]
-    allele_list_zhet2 = [n for n in range(0,N+1)]
     gt_failed = 0
-    zhet_count = 0
     zhet_sample_counts = OrderedDict({key:[0,0] for key in mi.sa.subgroups}) # Counts for Het and Homozygous_alts
     abhet_AD_list = [0 for i in allele_list]
     abhet_DP_list = copy.deepcopy(abhet_AD_list)
-    failed = allele_list
     subgroup_counts = OrderedDict({key:[0,0,0] for key in mi.sa.subgroups})
     subgroup_counts_cntrls = copy.deepcopy(subgroup_counts)
     mi.sa.clear_mpairs()
@@ -245,10 +265,10 @@ def count_gt_multiallelic(samples,rec_details):
                             zhet_sample_counts[subgroup][1] += 1
                             zhet_dict[subgroup][sm['GT'][1]] +=2
                     else:
-                        print('couldnot find', classification)
+                        raise TypeError("Weird GT")
         for het_gt in passing_d['obs_het']:
             if sm['GT'] in het_gt:
-                for allele in sm['GT']:   # For ABHET Calculations:
+                for allele in sm['GT']:   # For ABHET Calculations: each allele in abhet_AD_list/abhet_DP_list 
                     abhet_AD_list[allele] += sm['AD'][allele]
                 abhet_DP_list[sm['GT'][0]] += ( sm['AD'][sm['GT'][0]] + sm['AD'][sm['GT'][1]] )
                 abhet_DP_list[sm['GT'][1]] += ( sm['AD'][sm['GT'][1]] + sm['AD'][sm['GT'][0]] )
@@ -265,13 +285,10 @@ def count_gt_chrx(male_samples,female_samples,rec_details):
     #allele_list = [0, 1, 2, 3]
     missing = 0
     depth_sum = 0
-    allele_list_zhet1 = [n for n in range(0,N+1)]
-    allele_list_zhet2 = [n for n in range(0,N+1)]
     gt_failed = 0
     zhet_sample_counts = OrderedDict({key:[0,0] for key in mi.sa.subgroups})
     abhet_AD_list = [0 for i in allele_list]
     abhet_DP_list = copy.deepcopy(abhet_AD_list)
-    failed = allele_list
     subgroup_counts_male = OrderedDict({key:[0,0,0] for key in mi.sa.subgroups})
     subgroup_counts_cntrls_male = copy.deepcopy(subgroup_counts_male)
     subgroup_counts_female = OrderedDict({key:[0,0,0] for key in mi.sa.subgroups})
@@ -373,7 +390,7 @@ def count_gt_chrx(male_samples,female_samples,rec_details):
                         if mi.sa.sa_collection[k].is_control():
                             pass
                     else:
-                        print('couldnot find', classification)
+                        raise TypeError("Weird GT")
         tallyPassingSample(k,sm)
     for k,sm in female_samples.items():
         subgroup = mi.sa.sa_collection[k].get_subgroup()
@@ -451,7 +468,7 @@ def count_gt_chrx(male_samples,female_samples,rec_details):
                             zhet_sample_counts[subgroup][1] += 1
                             zhet_dict[subgroup][sm['GT'][1]] +=2
                     else:
-                        print('couldnot find', classification)
+                        raise TypeError("Weird GT")
                         
         for het_gt in passing_d_male['obs_het']:
             if sm['GT'] in het_gt:
@@ -472,7 +489,6 @@ def count_gt_chrx(male_samples,female_samples,rec_details):
     for k,v in passing_d_male['obs_het'].items():
         failing_d_male['obs_het'][k] += passing_d_male['obs_het'][k]
         gt_failed += passing_d_male['obs_het'][k]
-        #clean_d['male']['obs_het'][k] = 0
 
     zhet_total = []
     clean_homo_ref_male = list(passing_d_male['obs_homo1'].values())

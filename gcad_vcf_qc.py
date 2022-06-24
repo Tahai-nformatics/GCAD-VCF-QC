@@ -362,34 +362,7 @@ def write_subset_stats_chrx(prefix, rec, subset,vf,passing_d_male,passing_d_fema
                 maf.append(float(("{0:.5f}".format((het_maf_dict[allele] + (  maf_alleles)) / temp))))
             elif allele!=0:
                 maf.append(("{0:.5f}".format((het_maf_dict[allele] + ( homo_maf_dict[allele])) / temp)))
-    """
-    for k,v in maf_male['obs_het'].items():
-        maf_male['obs_het'][k] = 0
-
-    if temp >0:
-        for allele in allele_list:
-            het_maf_dict[allele] = 0
-            homo_maf_dict[allele] = 0
-            for key_male,key_female in zip(maf_male['obs_het'],maf_female['obs_het']):
-                if allele in key_male[0]:
-                    ac_ref_het += 1
-                    het_maf_dict[allele] += maf_male['obs_het'][key_male]
-                if allele in key_female[0]:
-                    ac_ref_het += 1
-                    het_maf_dict[allele] += maf_female['obs_het'][key_female]
-            for key_male,key_female in zip(maf_male['obs_homo2'],maf_female['obs_homo2']):
-                if allele in key_male[0]:
-                    homo_maf_dict[allele] += maf_male['obs_homo2'][key_male]
-                if allele in key_female[0]:
-                    homo_maf_dict[allele] += 2*maf_female['obs_homo2'][key_female] #2*maf_female because 2 alleles for female
-                else:
-                    continue
-            if allele == 0:
-                maf.append(float(("{0:.5f}".format((het_maf_dict[allele] + (  maf_final)) / temp))))
-            elif allele!=0:
-                maf.append(("{0:.5f}".format((het_maf_dict[allele] + ( homo_maf_dict[allele])) / temp)))
-    """
-    print(maf)
+ 
     total_genotypes = sum_clean + gt_failed
     mean_depth = depth_sum / total_genotypes if total_genotypes else 0
     with open(outfile, 'a') as csvfile:
@@ -415,8 +388,6 @@ def write_subset_stats_chrx(prefix, rec, subset,vf,passing_d_male,passing_d_fema
         row = {'CHR': rec.contig,
                'POS': rec.pos,
 
-            #'PASS_Homo_Ref':(list(passing_d_male['obs_homo1'].values())[0], list(passing_d_female['obs_homo1'].values())[0]),
-            #"PASS_Homo_Ref": ";".join(zip(passing_d_male['obs_homo1'].values()[0],passing_d_female['obs_homo1'].values()[0]))
             'PASS_Homo_Ref':str(list(passing_d_male['obs_homo1'].values())[0])+";"+str(list(passing_d_female['obs_homo1'].values())[0]),
             "PASS_Het":",".join(str(x) for x in passing_d_male['obs_het'].values())+";"+".".join(str(x) for x in passing_d_female['obs_het'].values()),
             "PASS_Homo_Alt":",".join(str(x) for x in passing_d_male['obs_homo2'].values())+";"+",".join(str(x) for x in passing_d_female['obs_homo2'].values()),
@@ -425,7 +396,6 @@ def write_subset_stats_chrx(prefix, rec, subset,vf,passing_d_male,passing_d_fema
             'FAIL_Homo_Alt':",".join(str(x) for x in failing_d_male['obs_homo2'].values())+";"+",".join(str(x) for x in failing_d_female['obs_homo2'].values()),
             'MISSING': missing,
             'GT_FAILED':gt_failed,
-
             'CLEAN_Homo_Ref': ",".join(str(x) for x in clean_d['male']['obs_homo1'].values()) + ";" + ",".join(str(x) for x in clean_d['female']['obs_homo1'].values()),
             'CLEAN_Het' : str(0) + ";" + ",".join(str(x) for x in clean_d['female']['obs_het'].values()),
             'CLEAN_Homo_Alt': ",".join(str(x) for x in clean_d['male']['obs_homo2'].values()) + ";" + ",".join(str(x) for x in clean_d['female']['obs_homo2'].values()),
@@ -572,7 +542,6 @@ def write_indiv_summary(prefix, isWES):
     return
 
 
-
 def write_indiv_summary_chrx(prefix, isWES):
     """
     """
@@ -617,8 +586,6 @@ def write_indiv_summary_chrx(prefix, isWES):
                row['TiTvRatio_WES'] = "{0:.5f}".format(ti_tv_wes)
             writer.writerow(row)
     return
-
-
 
 
 def delete_previous_outputs(out_dir, prefix, subsets):
@@ -866,12 +833,9 @@ def main():
     else: #Run analysis on biallelic chromosome
     # loop over each variant in VCF
         for rec in vcf_in.fetch(rChr, rStart, rEnd):
-        #if rec.pos < 10684424: continue
             if len(rec.alts) > 1:
             #print("Warning found multiallelic variant")
                 continue
-        #if ct > 10000:break
-
         # Variant Type: SNV, MNV, insertion, deletion
             vtype = "SNV"
             if len(rec.ref) > 1:
@@ -993,7 +957,6 @@ def calculate_subgroup_scores_multiallelic(subset, subg, subg_cntl,zhet_list,zhe
     return scores
 
 
-
 def calculate_subgroup_scores(subset, subg, subg_cntl):
     """ calculate_subgroup_scores - generates nClean, Zhet, and pHWE for subgroups
                                     added to TAGs within the INFO field. pHWE-subgroup has
@@ -1103,24 +1066,29 @@ def find_s_d(total_obs, samples):
     if sum(total_obs) > 0:
         maf = (total_obs[1] + 2 * total_obs[2]) / (2 * sum(total_obs))
     if maf <= 0.5:
-        # singleton
+        #singleton
         if total_obs[1] == 1 and total_obs[2] == 0:
             idv = find_singleton(samples)
             if idv: mi.sa.sa_collection[idv].tallySA['singleton'] += 1
+        #private_doubleton
         elif total_obs[2] == 1 and total_obs[1] == 0:
             idv = find_private_doubleton(samples, 1)
             if idv: mi.sa.sa_collection[idv].tallySA['p_dblton'] += 1
+        #doubleton
         elif total_obs[1] == 2 and total_obs[2] == 0:
             dbltons = find_doubletons(samples)
             for idv in dbltons:
                 mi.sa.sa_collection[idv].tallySA['doubleton'] += 1
     else:
+        #singleton
         if total_obs[1] == 1 and total_obs[0] == 0:
             idv = find_singleton(samples)
             mi.sa.sa_collection[idv].tallySA['singleton'] += 1
+        #private_doubleton
         elif total_obs[0] == 1 and total_obs[1] == 0:
             idv = find_private_doubleton(samples, 0)
             if idv: mi.sa.sa_collection[idv].tallySA['p_dblton'] += 1
+        #doubleton
         elif total_obs[1] == 2 and total_obs[0] == 0:
             dbltons = find_doubletons(samples)
             for idv in dbltons:
@@ -1143,21 +1111,25 @@ def find_s_d_chrx(clean_d, samples): #het_gts):
             idv = find_singleton_multiallelic(samples,clean_d['female']['obs_het'].keys())
             if idv:
                 mi.sa.sa_collection[idv].tallySA['singleton'] += 1
+         #private_doubleton
         elif total_obs_homo_alt == 1 and total_obs_het == 0:
             idv = find_private_doubleton_multiallelic(samples,clean_d['female']['obs_homo2'].keys())
-
             if idv: mi.sa.sa_collection[idv].tallySA['p_dblton'] +=1
+         #doubleton
         elif total_obs_het == 2 and total_obs_homo_alt == 0:
             dbltons = find_doubletons_multiallelic(samples, clean_d['female']['obs_het'].keys())
             for idv in dbltons:
                 mi.sa.sa_collection[idv].tallySA['doubleton'] +=1
     else:
+        #singleton
         if total_obs_het == 1 and total_obs_homo_ref == 0:
             idv = find_singleton_multiallelic(samples, clean_d['female']['obs_het'].keys())
             mi.sa.sa_collection[idv].tallySA['singleton'] += 1
+        #private_doubleton
         elif total_obs_homo_ref == 1 and total_obs_het == 0:
             idv = find_private_doubleton_multiallelic(samples, clean_d['female']['obs_homo1'].keys())
             if idv: mi.sa.sa_collection[idv].tallySA['p_dblton'] += 1
+        #doubleton
         elif total_obs_het == 2 and total_obs_homo_ref == 0:
             dbltons = find_doubletons_multiallelic(samples,clean_d['female']['obs_het'].keys())
             for idv in dbltons:
@@ -1255,17 +1227,22 @@ def gather_intersect_fam_vcf_samples(vcf_samples, fam_samples):
 
 def check_mendelian_errors_multiallelic(prefix, rec):
     """
+    If 1 parent:
+        If child_allele 1 or child_allele 2 != parent_allele 1 or parent_allele 2: Mendelian error
+
+    If 2 parents:
+        If child_allele 1 or child_allele 2 != parent1_allele1 or parent1_allele2: Mendelian error
+        If child_allele 1 or child_allele 2 != parent2_allele1 or parent2_allele2: Mendelian error
+
     """
     samples = rec.samples
     mend_pairs = 0
     mend_error = 0
-    kid_c = 0
     for kid in mi.sa.get_mi_kids():
         validparents = []
         found_mi_error = 0
         father = mi.sa.get_father(kid)
         mother = mi.sa.get_mother(kid)
-        kid_c += 1
         if father in mi.sa.id_list and is_good_gt(samples[ father ]):
             mend_pairs += 1
             validparents.append(father)
@@ -1273,10 +1250,11 @@ def check_mendelian_errors_multiallelic(prefix, rec):
             mend_pairs += 1
             validparents.append(mother)
             #print('valid parent found')
+
         # mend_error is child having allele not from parents
         if validparents == []:
             continue
-        elif len(validparents) == 1:
+        elif len(validparents) == 1: # Only 1 parent
             kid_allele1 = samples[kid]['GT'][0]
             kid_allele2 = samples[kid]['GT'][1]
 
@@ -1287,23 +1265,22 @@ def check_mendelian_errors_multiallelic(prefix, rec):
             else:
                 mend_error += 1
                 found_mi_error = 1
-        elif len(validparents) == 2:
-            
+        elif len(validparents) == 2: # 2 parents
             kid_allele1 = samples[kid]['GT'][0]
             kid_allele2 = samples[kid]['GT'][1]
 
-            if ( kid_allele1 == samples[validparents[0]]['GT'][0] ) or ( kid_allele1 == samples[validparents[0]]['GT'][1] ): #Kid allele 1 matches parent 1
-                if ( kid_allele2 == samples[validparents[1]]['GT'][0] ) or ( kid_allele2 == samples[validparents[1]]['GT'][1] ): #Kid allele 2 matches parent 2
-                    continue
+            if ( kid_allele1 == samples[validparents[0]]['GT'][0] ) or ( kid_allele1 == samples[validparents[0]]['GT'][1] ): #Kid allele 1 matches parent 1 allele
+                if ( kid_allele2 == samples[validparents[1]]['GT'][0] ) or ( kid_allele2 == samples[validparents[1]]['GT'][1] ): #Kid allele 2 matches parent 2 allele
+                    continue # Clean - Both kid alleles match a parent allele
                 else:
-                    pass
-            if ( kid_allele2 == samples[validparents[0]]['GT'][0] ) or ( kid_allele2 == samples[validparents[0]]['GT'][1]) : # Kid allele 2 matches parent 1
-                if ( kid_allele1 == samples[validparents[1]]['GT'][0] ) or ( kid_allele1 == samples[validparents[1]]['GT'][1] ): #Kid allele 1 matches parent 2
-                    continue
-                else:
+                    pass #Kid allele 1 matches  parent_1 allele, but kid allele 2 doesn't match parent_2 allele. 
+            if ( kid_allele2 == samples[validparents[0]]['GT'][0] ) or ( kid_allele2 == samples[validparents[0]]['GT'][1]) : # Kid allele 2 matches parent 1 allele
+                if ( kid_allele1 == samples[validparents[1]]['GT'][0] ) or ( kid_allele1 == samples[validparents[1]]['GT'][1] ): #Kid allele 1 matches parent 2 allele
+                    continue # Clean - Both kid alleles match a parent allele
+                else: # Mendelian Error - only 1 kid allele matches a parent allele
                     mend_error += 1
                     found_mi_error = 1
-            else:
+            else: # Mendelian Error - no kid alleles match either parent alleles
                 mend_error += 1
                 found_mi_error = 1
 
