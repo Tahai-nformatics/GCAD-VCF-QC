@@ -953,7 +953,10 @@ def calculate_subgroup_scores_multiallelic(subset, subg, subg_cntl,zhet_list,zhe
         if type(scores['Zhet_' + k]) == float:
             scores['Zhet_' + k] = "{0:.5f}".format(scores['Zhet_' + k])
         if type(scores['pHWE_' + k]) == float:
-            scores['pHWE_' + k] = "{0:.5f}".format(scores['pHWE_' + k])
+            if scores['pHWE_' + k] <= 0.0001:
+                scores['pHWE_' + k] = "{0:.5e}".format(scores['pHWE_' + k])
+            else: 
+                scores['pHWE_' + k] = "{0:.5f}".format(scores['pHWE_' + k])
     return scores
 
 
