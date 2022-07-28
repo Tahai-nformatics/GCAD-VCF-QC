@@ -140,14 +140,10 @@ def write_subset_stats_multiallelic(prefix, rec, subset,maf, vf, passing_d,faili
     newfile = not os.path.exists(outfile)
     rec_details = {'filter': rec.filter, 'ref': rec.ref, 'alt': rec.alts,
                  'chr': rec.contig, 'pos': rec.pos}
-    callrate = 1 - (missing + gt_failed) / (missing + gt_failed + sum_clean)
-    N = len(rec_details['alt'])
-    allele_list = [n for n in range(0,N+1)]
-    het_maf_dict = {}
-    homo_maf_dict = {}
     total_genotypes = sum_clean + gt_failed
+
 #Determine VTYPE
-    alts_vtype = []
+    alts_vtype = [] 
     for alts in rec.alts:
         ct = 0
         if alts != "*":
@@ -165,6 +161,7 @@ def write_subset_stats_multiallelic(prefix, rec, subset,maf, vf, passing_d,faili
             elif ct == 1:
                 VTYPE='SNP'
                 alts_vtype.append(VTYPE)
+    
     if ( 'SNP' in alts_vtype ) and ( 'INDEL' in alts_vtype ):
         VTYPE='MULTI_MIX'
     elif 'SNP' in alts_vtype:
@@ -172,8 +169,13 @@ def write_subset_stats_multiallelic(prefix, rec, subset,maf, vf, passing_d,faili
     elif 'INDEL' in alts_vtype:
         VTYPE='MULTI_INDEL'
     else:
-        return "error"
+        raise "VTYPE error"
+    
+    #MeanDepth    
     mean_depth = depth_sum / total_genotypes if total_genotypes else 0
+
+    #CallRate
+    callrate = 1 - (missing + gt_failed) / (missing + gt_failed + sum_clean)
 
     with open(outfile, 'a') as csvfile:
         fieldnames = ['CHR','POS',
@@ -334,8 +336,19 @@ def write_subset_stats_chrx(prefix, rec, subset,vf,passing_d_male,passing_d_fema
     maf_male = copy.deepcopy(clean_d['male']) #maf_male Het GT's will be set to 0, and used in maf calculation
     maf_female = copy.deepcopy(clean_d['female'])
     maf = []
-    maf_alleles = sum(list(clean_d['male']['obs_homo1'].values())) + 2*sum(list(clean_d['female']['obs_homo1'].values()))        
+    maf_reference_alleles = sum(list(clean_d['male']['obs_homo1'].values())) + 2*sum(list(clean_d['female']['obs_homo1'].values()))        
     temp = 2 * (sum(list(clean_d['female']['obs_homo1'].values())) + sum(list(clean_d['female']['obs_homo2'].values())) + sum(list(clean_d['female']['obs_het'].values()))) + sum(list(clean_d['male']['obs_homo1'].values())) + sum(list(clean_d['male']['obs_homo2'].values()))
+
+
+
+
+#Calculate VTYPE
+    vtype = "SNV"
+    if len(rec.ref) > 1:
+        vtype = "Deletion"
+    elif len(rec.alts[0]) > 1:
+        vtype = "Insertion"
+
 
 #For MAF calculation, set Male_Passing_Het to 0
     
@@ -346,7 +359,7 @@ def write_subset_stats_chrx(prefix, rec, subset,vf,passing_d_male,passing_d_fema
         for allele in allele_list:
             het_maf_dict[allele] = 0
             homo_maf_dict[allele] = 0
-            for key_male,key_female in zip(maf_male['obs_het'],maf_female['obs_het']): # i.e key_male = ((0, 1), (1, 0)) ke_male[0] = (0,1)
+            for key_male,key_female in zip(maf_male['obs_het'],maf_female['obs_het']): # i.e key_male = ((0, 1), (1, 0)) key_male[0] = (0,1)
                 if allele in key_male[0]:
                     het_maf_dict[allele] += maf_male['obs_het'][key_male]
                 if allele in key_female[0]:
@@ -359,12 +372,14 @@ def write_subset_stats_chrx(prefix, rec, subset,vf,passing_d_male,passing_d_fema
                 else:
                     continue
             if allele == 0:
-                maf.append(float(("{0:.5f}".format((het_maf_dict[allele] + (  maf_alleles)) / temp))))
+                maf.append(float(("{0:.5f}".format((het_maf_dict[allele] + (  maf_reference_alleles)) / temp))))
             elif allele!=0:
                 maf.append(("{0:.5f}".format((het_maf_dict[allele] + ( homo_maf_dict[allele])) / temp)))
- 
+    
+    #MeanDepth
     total_genotypes = sum_clean + gt_failed
     mean_depth = depth_sum / total_genotypes if total_genotypes else 0
+    
     with open(outfile, 'a') as csvfile:
         fieldnames = ['CHR','POS',
                       'PASS_Homo_Ref','PASS_Het', "PASS_Homo_Alt",
@@ -374,7 +389,7 @@ def write_subset_stats_chrx(prefix, rec, subset,vf,passing_d_male,passing_d_fema
                       'MONO','CALLRATE','CALLBAD','GATKPass',
                       'Mendelian_Inconsistency','Mend_pairs','propMI','AF','MEAN_DEPTH', 'HI_DEPTH', 'ABHET',
                       'VFLAGS', 'rsID', 'RefAllele', 'AltAlleles',
-                      'QUAL','FILTER','MaleHet',
+                      'QUAL','FILTER','VTYPE','MaleHet',
                      ]
         fieldnames.extend(scores.keys())
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames , delimiter='\t', lineterminator='\n')
@@ -387,7 +402,6 @@ def write_subset_stats_chrx(prefix, rec, subset,vf,passing_d_male,passing_d_fema
         qual = "{0:.2f}".format(rec.qual) if rec.qual is not None else 'NA'
         row = {'CHR': rec.contig,
                'POS': rec.pos,
-
             'PASS_Homo_Ref':str(list(passing_d_male['obs_homo1'].values())[0])+";"+str(list(passing_d_female['obs_homo1'].values())[0]),
             "PASS_Het":",".join(str(x) for x in passing_d_male['obs_het'].values())+";"+".".join(str(x) for x in passing_d_female['obs_het'].values()),
             "PASS_Homo_Alt":",".join(str(x) for x in passing_d_male['obs_homo2'].values())+";"+",".join(str(x) for x in passing_d_female['obs_homo2'].values()),
@@ -412,6 +426,7 @@ def write_subset_stats_chrx(prefix, rec, subset,vf,passing_d_male,passing_d_fema
             'AltAlleles': ",".join(rec.alts),
             'QUAL':qual,
             'FILTER':",".join(rec.filter.keys()),
+            'VTYPE': vtype,
             'MaleHet': ",".join(str(x) for x in clean_d['male']['obs_het'].values())
             }
         row.update(scores)
@@ -564,7 +579,7 @@ def write_indiv_summary_chrx(prefix, isWES):
 
             # mean_depth
             good_gt = val.tallySA[(0,0)] + val.tallySA['passing_obs_homo2'] + val.tallySA['passing_obs_het']
-            all_gt = good_gt #+ val.tallySA[-9]
+            all_gt = good_gt + val.tallySA[-9]
             mean_depth = val.dp_total / all_gt if all_gt else 0
 
             row = {'SampleID': indiv, 'SEX': val.details_dict.SEX,
@@ -946,10 +961,9 @@ def calculate_subgroup_scores_multiallelic(subset, subg, subg_cntl,zhet_list,zhe
         total_obs = sum([x + y for x,y in zip(subg[k],subg_cntl[k])])
         zhet_count = zhet_sample_counts[k][0]
         zhet_hom2_count = zhet_sample_counts[k][1]
-        scores['nClean_' + k] = sum(val) # ",".join(map(str,val)),
         scores['nClean_' + k] =  ",".join(map(str,val)) + ';' + ",".join(map(str,val_cntl))
         scores['Zhet_' + k] = calc_ExcessHet_multiallelic(zhet_val,total_obs,zhet_count,zhet_hom2_count) #zhet_val=allele#'s, zhet_count=het_counts, zhet_hom2_count=homozygous_alts
-        scores['pHWE_' + k] = calc_pHWE(*val_cntl) if sum(val_cntl) > 5 else '-1'
+        scores['pHWE_' + k] = calc_pHWE(*val_cntl) if sum(val_cntl) > 5 else '.'
         if type(scores['Zhet_' + k]) == float:
             scores['Zhet_' + k] = "{0:.5f}".format(scores['Zhet_' + k])
         if type(scores['pHWE_' + k]) == float:
@@ -976,7 +990,6 @@ def calculate_subgroup_scores(subset, subg, subg_cntl):
     for k in sorted(mi.sa.subsets[subset]):
         val = subg[k]
         val_cntl = subg_cntl[k]
-        #scores['nClean_' + k] = sum(val) # ",".join(map(str,val)),
         scores['nClean_' + k] =  ",".join(map(str,val)) + ';' + ",".join(map(str,val_cntl))
         scores['Zhet_' + k] = calc_ExcessHet(*val)[0]
         scores['pHWE_' + k] = calc_pHWE(*val_cntl) if sum(val_cntl) >= 5 else '.'
@@ -1012,7 +1025,6 @@ def calculate_subgroup_scores_chrx(subset, subg_male,subg_female, subg_cntl_male
         total_obs = total_obs_male + total_obs_female
         zhet_count = zhet_sample_counts[k][0]
         zhet_hom2_count = zhet_sample_counts[k][1]
-        scores['nClean_' + k] = sum(val_male) # ",".join(map(str,val)),
         scores['nClean_' + k] = ",".join((str(val_male[0]), str(val_male[2]))) + ',' + ",".join(map(str,val_female)) + ';' + ",".join((str(val_cntl_male[0]), str(val_cntl_male[2]))) + "," + ",".join(map(str,val_cntl_female))
         scores['Zhet_' + k] = calc_ExcessHet_multiallelic(zhet_val,total_obs_female,zhet_count,zhet_hom2_count)
         scores['pHWE_' + k] = calc_pHWE(*val_cntl_female) if sum(val_cntl_female) >= 5 else '.'
@@ -1052,7 +1064,8 @@ def find_s_d_multiallelic(clean_passing_d, samples): #het_gts):
     else:
         if total_obs_het == 1 and total_obs_homo_ref == 0:
             idv = find_singleton_multiallelic(samples, clean_passing_d['obs_het'].keys())
-            mi.sa.sa_collection[idv].tallySA['singleton'] += 1
+            if idv:
+                mi.sa.sa_collection[idv].tallySA['singleton'] += 1
         elif total_obs_homo_ref == 1 and total_obs_het == 0:
             idv = find_private_doubleton_multiallelic(samples, clean_passing_d['obs_homo1'].keys())
             if idv: mi.sa.sa_collection[idv].tallySA['p_dblton'] += 1
@@ -1086,7 +1099,8 @@ def find_s_d(total_obs, samples):
         #singleton
         if total_obs[1] == 1 and total_obs[0] == 0:
             idv = find_singleton(samples)
-            mi.sa.sa_collection[idv].tallySA['singleton'] += 1
+            if idv:
+                mi.sa.sa_collection[idv].tallySA['singleton'] += 1
         #private_doubleton
         elif total_obs[0] == 1 and total_obs[1] == 0:
             idv = find_private_doubleton(samples, 0)
@@ -1127,7 +1141,8 @@ def find_s_d_chrx(clean_d, samples): #het_gts):
         #singleton
         if total_obs_het == 1 and total_obs_homo_ref == 0:
             idv = find_singleton_multiallelic(samples, clean_d['female']['obs_het'].keys())
-            mi.sa.sa_collection[idv].tallySA['singleton'] += 1
+            if idv:
+                mi.sa.sa_collection[idv].tallySA['singleton'] += 1
         #private_doubleton
         elif total_obs_homo_ref == 1 and total_obs_het == 0:
             idv = find_private_doubleton_multiallelic(samples, clean_d['female']['obs_homo1'].keys())
