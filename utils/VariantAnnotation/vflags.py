@@ -334,7 +334,9 @@ def calcVA_chrx(male_snp_samples,female_snp_samples,rec_details,male_subset,fema
     obs_hom2_male = sum(list(passing_d_male['obs_homo2'].values()))
     obs_hom2_female = sum(list(passing_d_female['obs_homo2'].values()))
     sum_clean = 0
+    total = obs_hom1_male + obs_hom1_female + obs_het_male + obs_het_female + obs_hom2_male + obs_hom2_female + missing + gt_failed
     total_genotypes = total - missing
+
 
     #Add All Non-Male_Het GT's to sum_Clean
     for key1,key2 in zip(clean_d['male'].keys(),clean_d['female'].keys()): #obs_hom1, obs_het, obs_hom2
