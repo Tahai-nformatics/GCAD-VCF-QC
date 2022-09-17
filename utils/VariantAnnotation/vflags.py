@@ -334,9 +334,7 @@ def calcVA_chrx(male_snp_samples,female_snp_samples,rec_details,male_subset,fema
     obs_hom2_male = sum(list(passing_d_male['obs_homo2'].values()))
     obs_hom2_female = sum(list(passing_d_female['obs_homo2'].values()))
     sum_clean = 0
-    total = obs_hom1_male + obs_hom1_female + obs_het_male + obs_het_female + obs_hom2_male + obs_hom2_female + missing + gt_failed
     total_genotypes = total - missing
-
 
     #Add All Non-Male_Het GT's to sum_Clean
     for key1,key2 in zip(clean_d['male'].keys(),clean_d['female'].keys()): #obs_hom1, obs_het, obs_hom2
@@ -346,6 +344,9 @@ def calcVA_chrx(male_snp_samples,female_snp_samples,rec_details,male_subset,fema
         else: #Add female Het GT's
             for value in clean_d['female'][key1].values(): #Genotypes
                 sum_clean += value
+
+
+    total = missing + gt_failed + sum_clean
 
     # VFLAG 2
     if (missing + gt_failed) == total:
@@ -364,15 +365,12 @@ def calcVA_chrx(male_snp_samples,female_snp_samples,rec_details,male_subset,fema
                 pass
             else:
                 vf.append(3)
-    total = missing + gt_failed + sum_clean
-    
+
     #VFLAG 4
-    val1 = (missing + gt_failed + sum_clean)
     callrate = 1 - (missing + gt_failed) / total
     if callrate <= (1-cfg.miss_rate):
 
         vf.append(4)
-    
     # VFlag 5:
     if total_genotypes > 0:
         if (depth_sum / total_genotypes) > cfg.max_dp:

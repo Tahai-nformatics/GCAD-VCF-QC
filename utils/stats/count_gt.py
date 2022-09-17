@@ -323,8 +323,10 @@ def count_gt_chrx(male_samples,female_samples,rec_details):
     #Example of passing_d:{classification:{GT:count}}: {'obs_homo1': {((0, 0), (0, 0)): 0}, 'obs_het': {((0, 1), (1, 0)): 0, ((0, 2), (2, 0)): 0, ((0, 3), (3, 0)): 0, ((1, 2), (2, 1)): 0, (1)): 0, ((2, 3), (3, 2)): 0}, 
 #'obs_homo2': {((1, 1), (1, 1)): 0, ((2, 2), (2, 2)): 0, ((3, 3), (3, 3)): 0}}    
 
+    ref = rec_details['ref']
+    alt = rec_details['alt'][0]
+
     for k,sm in male_samples.items():
-        #print(k)
         subgroup = mi.sa.sa_collection[k].get_subgroup()
         if (None in sm['GT']):
             missing += 1
@@ -374,6 +376,7 @@ def count_gt_chrx(male_samples,female_samples,rec_details):
                         subgroup_counts_male, subgroup_counts_cntrls_male = increment_subgroup(k, 0, subgroup_counts_male, subgroup_counts_cntrls_male)
 
                     elif classification == 'obs_het':
+                        mi.sa.sa_collection[k].tallySA['passing_'+ classification] += 1
                         if 0 in sm['GT']:
                             mi.sa.sa_collection[k].tallySA['failing_obs_het'] += 1
                         else:
@@ -385,13 +388,16 @@ def count_gt_chrx(male_samples,female_samples,rec_details):
                         else:
                             subgroup_counts_male, subgroup_counts_cntrls_male = increment_subgroup(k, 1, subgroup_counts_male, subgroup_counts_cntrls_male)
                     elif classification == 'obs_homo2':
+                        tallyTiTv(k, sm, ref, alt, None)
                         mi.sa.sa_collection[k].tallySA['passing_obs_homo2'] += 1
                         subgroup_counts_male, subgroup_counts_cntrls_male = increment_subgroup(k, 2, subgroup_counts_male, subgroup_counts_cntrls_male)
                         if mi.sa.sa_collection[k].is_control():
                             pass
                     else:
                         raise TypeError("Weird GT")
+        
         tallyPassingSample(k,sm)
+     
     for k,sm in female_samples.items():
         subgroup = mi.sa.sa_collection[k].get_subgroup()
         if (None in sm['GT']):
@@ -442,6 +448,7 @@ def count_gt_chrx(male_samples,female_samples,rec_details):
                             zhet_dict[subgroup][0] +=2
                         subgroup_counts_female, subgroup_counts_cntrls_female = increment_subgroup(k, 0, subgroup_counts_female, subgroup_counts_cntrls_female)
                     elif classification == 'obs_het':
+                        tallyTiTv(k, sm, ref, alt, None)
                         zhet_sample_counts[subgroup][0] += 1
                         zhet_dict[subgroup][sm['GT'][0]] +=1
                         zhet_dict[subgroup][sm['GT'][1]] +=1
@@ -460,6 +467,8 @@ def count_gt_chrx(male_samples,female_samples,rec_details):
                         else:
                             subgroup_counts_female, subgroup_counts_cntrls_female = increment_subgroup(k, 1, subgroup_counts_female, subgroup_counts_cntrls_female)
                     elif classification == 'obs_homo2':
+                        tallyTiTv(k, sm, ref, alt, None)
+
                         zhet_dict[subgroup][sm['GT'][1]] +=2
                         zhet_sample_counts[subgroup][1] += 1
                         mi.sa.sa_collection[k].tallySA['passing_obs_homo2'] += 1
@@ -469,7 +478,8 @@ def count_gt_chrx(male_samples,female_samples,rec_details):
                             zhet_dict[subgroup][sm['GT'][1]] +=2
                     else:
                         raise TypeError("Weird GT")
-                        
+        
+        tallyPassingSample(k,sm)
         for het_gt in passing_d_male['obs_het']:
             if sm['GT'] in het_gt:
                 for allele in sm['GT']:   # For ABHET Calculations:
@@ -484,22 +494,10 @@ def count_gt_chrx(male_samples,female_samples,rec_details):
                 abhet_DP_list[sm['GT'][1]] += ( sm['AD'][sm['GT'][1]] + sm['AD'][sm['GT'][0]] )
 
 
-        tallyPassingSample(k,sm)
     clean_d['male'],clean_d['female'] = copy.deepcopy(passing_d_male), copy.deepcopy(passing_d_female)
     for k,v in passing_d_male['obs_het'].items():
         failing_d_male['obs_het'][k] += passing_d_male['obs_het'][k]
         gt_failed += passing_d_male['obs_het'][k]
-
-    zhet_total = []
-    clean_homo_ref_male = list(passing_d_male['obs_homo1'].values())
-    clean_homo_ref_female = list(passing_d_female['obs_homo1'].values())
-    clean_het_male = list(passing_d_male['obs_het'].values())
-    clean_het_female = list(passing_d_female['obs_het'].values())
-
-    clean_homo_alt_male = list(passing_d_male['obs_homo2'].values())
-    clean_homo_alt_female = list(passing_d_female['obs_homo2'].values())
-
-
 
 
     return [passing_d_male,failing_d_male,passing_d_female,failing_d_female,missing,gt_failed,clean_d,depth_sum,abhet_AD_list,abhet_DP_list,subgroup_counts_male,subgroup_counts_female, subgroup_counts_cntrls_male,subgroup_counts_cntrls_female,zhet_dict,zhet_sample_counts]

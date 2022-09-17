@@ -531,7 +531,7 @@ def write_indiv_summary(prefix, isWES):
             good_gt = val.tallySA[(0,0)] + good_het_gt + val.tallySA[(1,1)]
             all_gt = good_gt + val.tallySA[-9]
             mean_depth = val.dp_total / all_gt if all_gt else 0
-
+            
             row = {'SampleID': indiv, 'SEX': val.details_dict.SEX,
                             'total_nRR': val.tallySA[(0,0)],'total_nRA': good_het_gt,'total_nAA': val.tallySA[(1,1)],
                             'Missing': val.tallySA[(None,None)],'Set_Missing': val.tallySA[-9],
@@ -565,7 +565,8 @@ def write_indiv_summary_chrx(prefix, isWES):
 
     with open(outfile, 'w') as csvfile:
         fieldnames = ['SampleID','SEX', 'Pass', 'Fail','Missing', 'Set_Missing',
-                      'Singleton','Private_Doubleton','Doubleton','HetHom','IndMeanDepth']
+                      'Singleton','Private_Doubleton','Doubleton','HetHom',
+                      'Ti','Tv','TiTvRatio','IndDepthSum', 'IndMeanDepth',]
 
         if isWES:
            fieldnames.extend(['Ti_WES','Tv_WES','TiTvRatio_WES'])
@@ -575,12 +576,16 @@ def write_indiv_summary_chrx(prefix, isWES):
 
         abc_order = OrderedDict(sorted(mi.sa.sa_collection.items()))
         for indiv, val in abc_order.items():
+            
+            ti_tv = val.tallySA['ti'] / val.tallySA['tv'] if val.tallySA['tv'] else 0
+
             het_hom = val.tallySA['passing_obs_het']/val.tallySA['passing_obs_homo2'] if val.tallySA['passing_obs_homo2'] else 0
 
             # mean_depth
             good_gt = val.tallySA[(0,0)] + val.tallySA['passing_obs_homo2'] + val.tallySA['passing_obs_het']
             all_gt = good_gt + val.tallySA[-9]
             mean_depth = val.dp_total / all_gt if all_gt else 0
+
 
             row = {'SampleID': indiv, 'SEX': val.details_dict.SEX,
                     'Pass': ",".join([str(val.tallySA['passing_obs_homo1']),str(val.tallySA['passing_obs_het']),str(val.tallySA['passing_obs_homo2'])]),
@@ -591,6 +596,10 @@ def write_indiv_summary_chrx(prefix, isWES):
                     'Private_Doubleton': val.tallySA['p_dblton'],
                     'Doubleton': val.tallySA['doubleton'],
                     'HetHom':"{0:.5f}".format(het_hom),
+                    'Ti': val.tallySA['ti'], 
+                    'Tv': val.tallySA['tv'], 
+                    'TiTvRatio':"{0:.5f}".format(ti_tv),
+                    'IndDepthSum': val.dp_total,
                     'IndMeanDepth':"{0:.5f}".format(mean_depth),
                     }
             # WES - TiTv
@@ -832,7 +841,6 @@ def main():
             for (subset_male, sm_list_male), (subset_female, sm_list_female) in zip(samplesDict_male.items(), samplesDict_female.items()):
                 rec_details= {'filter': rec.filter, 'ref': rec.ref, 'alt': rec.alts,
                      'chr': rec.contig, 'pos': rec.pos}
-
                 [vf,passing_d_male,passing_d_female,failing_d_male,failing_d_female,missing,gt_failed,clean_d,sum_clean,depth_sum,ab_het,subg_male,subg_female,subg_c_male,subg_c_female,zhet_dict,zhet_sample_counts] = calcVA_chrx(sm_list_male['dict'],sm_list_female['dict'],rec_details,subset_male,subset_female)
                 scores = calculate_subgroup_scores_chrx(subset_male, subg_male,subg_female, subg_c_male,subg_c_female,zhet_dict,zhet_sample_counts)
                 write_subset_stats_chrx(prefix_companions, rec, subset_male,vf,passing_d_male,passing_d_female,failing_d_male,failing_d_female,missing,gt_failed,clean_d,sum_clean,depth_sum,ab_het, scores)   #No mend_pairs, errors
@@ -1112,47 +1120,88 @@ def find_s_d(total_obs, samples):
                 mi.sa.sa_collection[idv].tallySA['doubleton'] += 1
 
 
-def find_s_d_chrx(clean_d, samples): #het_gts):
+def find_s_d_chrx(clean_d, samples):
+    """
+    1/1 Male GT's treated as being 'Heterozygous' since even though males are hemizygous at Chrx, they carry an alt allele
+    """
+    abc_order = OrderedDict(sorted(mi.sa.sa_collection.items()))      #Used to check SEX of sample 
     maf = 0
     
     total_obs = sum(list(clean_d['male']['obs_homo1'].values())) + sum(list(clean_d['female']['obs_homo1'].values())) + sum(list(clean_d['female']['obs_het'].values())) + sum(list(clean_d['male']['obs_homo2'].values())) + sum(list(clean_d['female']['obs_homo2'].values()))
     total_obs_homo_ref =  sum(list(clean_d['male']['obs_homo1'].values())) + sum(list(clean_d['female']['obs_homo1'].values()))
-    total_obs_het = sum(list(clean_d['female']['obs_het'].values()))
-    total_obs_homo_alt =  sum(list(clean_d['male']['obs_homo2'].values())) + sum(list(clean_d['female']['obs_homo2'].values()))
+    total_obs_het = sum(list(clean_d['female']['obs_het'].values())) + sum(list(clean_d['male']['obs_homo2'].values()))
+    total_obs_homo_alt =sum(list(clean_d['female']['obs_homo2'].values()))
+    female_obs = sum(list(clean_d['female']['obs_homo1'].values())) + sum(list(clean_d['female']['obs_het'].values())) + sum(list(clean_d['female']['obs_homo2'].values()))
+    male_obs = sum(list(clean_d['male']['obs_homo1'].values())) + sum(list(clean_d['male']['obs_homo2'].values()))  
 
     if total_obs > 0:
-        maf = (total_obs_het + (2 * total_obs_homo_alt)) / (2 * total_obs)
+        maf = (total_obs_het + (2 * total_obs_homo_alt)) / ((2 * female_obs) + male_obs)
     if maf <= 0.5:
         # singleton
         if total_obs_het == 1 and total_obs_homo_alt == 0:
-            idv = find_singleton_multiallelic(samples,clean_d['female']['obs_het'].keys())
-            if idv:
-                mi.sa.sa_collection[idv].tallySA['singleton'] += 1
+            if sum(list(clean_d['female']['obs_het'].values())):                    #Het sample is female, use female GT 0/1
+                idv = find_singleton_multiallelic(samples, clean_d['female']['obs_het'].keys())
+                if abc_order[idv].details_dict.SEX == "1":                          #After checking all samples, make sure sample is Female
+                    mi.sa.sa_collection[idv].tallySA['singleton'] += 1
+            elif sum(list(clean_d['male']['obs_homo2'].values())):                  #Het sample is male, use male GT 1/1
+                idv = find_singleton_multiallelic(samples, clean_d['male']['obs_homo2'].keys())
+                if abc_order[idv].details_dict.SEX == "0":                          #After checking all samples, make sure sample is Male
+                    mi.sa.sa_collection[idv].tallySA['singleton'] += 1
+         
          #private_doubleton
         elif total_obs_homo_alt == 1 and total_obs_het == 0:
             idv = find_private_doubleton_multiallelic(samples,clean_d['female']['obs_homo2'].keys())
-            if idv: mi.sa.sa_collection[idv].tallySA['p_dblton'] +=1
-         #doubleton
+            if abc_order[idv].details_dict.SEX == "1":
+                mi.sa.sa_collection[idv].tallySA['p_dblton'] +=1
+        
+        #doubleton
         elif total_obs_het == 2 and total_obs_homo_alt == 0:
-            dbltons = find_doubletons_multiallelic(samples, clean_d['female']['obs_het'].keys())
-            for idv in dbltons:
-                mi.sa.sa_collection[idv].tallySA['doubleton'] +=1
+            if sum(list(clean_d['male']['obs_homo2'].values())):                #If Male hets, use 1/1 GT
+                dbltons = find_doubletons_multiallelic(samples,clean_d['male']['obs_homo2'].keys())
+                for idv in dbltons:
+                    if abc_order[idv].details_dict.SEX == "0":                  #After checking all samples, make sure sample is Male
+                        mi.sa.sa_collection[idv].tallySA['doubleton'] += 1
+            if sum(list(clean_d['female']['obs_het'].values())):                #If Female hets, use 0/1 GT
+                dbltons = find_doubletons_multiallelic(samples,clean_d['female']['obs_het'].keys())
+                for idv in dbltons:
+                    if abc_order[idv].details_dict.SEX == "1":                  #After checking all samples, make sure sample is Female
+                        mi.sa.sa_collection[idv].tallySA['doubleton'] += 1
+
     else:
         #singleton
         if total_obs_het == 1 and total_obs_homo_ref == 0:
-            idv = find_singleton_multiallelic(samples, clean_d['female']['obs_het'].keys())
-            if idv:
-                mi.sa.sa_collection[idv].tallySA['singleton'] += 1
+            if sum(list(clean_d['female']['obs_het'].values())):                #If Female hets, use 0/1 GT
+                idv = find_singleton_multiallelic(samples, clean_d['female']['obs_het'].keys())
+                if abc_order[idv].details_dict.SEX == "1":                      #After checking all samples, make sure sample is Female
+                    mi.sa.sa_collection[idv].tallySA['singleton'] += 1
+            elif sum(list(clean_d['male']['obs_homo2'].values())):              #If Male hets, use 1/1 GT
+                idv = find_singleton_multiallelic(samples, clean_d['male']['obs_homo2'].keys())
+                if abc_order[idv].details_dict.SEX == "0":                      #After checking all samples, make sure sample is Male
+                    mi.sa.sa_collection[idv].tallySA['singleton'] += 1
+
         #private_doubleton
         elif total_obs_homo_ref == 1 and total_obs_het == 0:
-            idv = find_private_doubleton_multiallelic(samples, clean_d['female']['obs_homo1'].keys())
-            if idv: mi.sa.sa_collection[idv].tallySA['p_dblton'] += 1
-        #doubleton
-        elif total_obs_het == 2 and total_obs_homo_ref == 0:
-            dbltons = find_doubletons_multiallelic(samples,clean_d['female']['obs_het'].keys())
-            for idv in dbltons:
-                mi.sa.sa_collection[idv].tallySA['doubleton'] += 1
+            if sum(list(clean_d['male']['obs_homo1'].values())):                #If male Homozygous_ref, use 0/0 GT
+                idv = find_private_doubleton_multiallelic(samples, clean_d['male']['obs_homo1'].keys())
+                if abc_order[idv].details_dict.SEX == "0":                      #After checking all samples, make sure sample is Female
+                    mi.sa.sa_collection[idv].tallySA['p_dblton'] += 1
+            else:                                                               #If female Homozygous_ref, use 0/0 GT
+                idv = find_private_doubleton_multiallelic(samples, clean_d['female']['obs_homo1'].keys())
+                if abc_order[idv].details_dict.SEX == "1":                      #After checking all samples, make sure sample is Male
+                    mi.sa.sa_collection[idv].tallySA['p_dblton'] += 1
 
+        #doubleton
+        elif total_obs_het == 2 and total_obs_homo_ref == 0:                    #If Male Het, use 1/1 GT
+            if sum(list(clean_d['male']['obs_homo2'].values())):
+                dbltons = find_doubletons_multiallelic(samples,clean_d['male']['obs_homo2'].keys())
+                for idv in dbltons:
+                    if abc_order[idv].details_dict.SEX == "0":                  #After checking all samples, make sure sample is Male
+                        mi.sa.sa_collection[idv].tallySA['doubleton'] += 1
+            if sum(list(clean_d['female']['obs_het'].values())):                #If Female het, use 0/1 GT
+                dbltons = find_doubletons_multiallelic(samples,clean_d['female']['obs_het'].keys())
+                for idv in dbltons:
+                    if abc_order[idv].details_dict.SEX == "1":                  #After checking all samples, make sure sample is Female
+                        mi.sa.sa_collection[idv].tallySA['doubleton'] += 1
 
 
 def find_singleton_multiallelic(samples, het_alleles):
@@ -1197,7 +1246,7 @@ def find_doubletons_multiallelic(samples, het_alleles):
                             k_list.append(k)
                 except TypeError:  #TypeError: unorderable types: NoneType() < int() (missing DP)
                     continue
-
+            
             if len(k_list) == 2:
                 return k_list
 
