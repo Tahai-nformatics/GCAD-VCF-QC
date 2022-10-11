@@ -461,8 +461,7 @@ def write_indiv_summary_multiallelic(prefix, isWES):
     outfile = '{}.tsv'.format(prefix)
 
     with open(outfile, 'w') as csvfile:
-        fieldnames = ['SampleID','SEX', 'Pass', 'Fail','Missing', 'Set_Missing',
-                      'Singleton','Private_Doubleton','Doubleton','HetHom','IndMeanDepth']
+        fieldnames = ['SampleID','SEX', 'Pass', 'Fail','Missing', 'Set_Missing','HetHom', 'IndDepthSum', 'IndMeanDepth']
 
         if isWES:
            fieldnames.extend(['Ti_WES','Tv_WES','TiTvRatio_WES'])
@@ -483,10 +482,8 @@ def write_indiv_summary_multiallelic(prefix, isWES):
                     'Fail':  ",".join([str(val.tallySA['failing_obs_homo1']),str(val.tallySA['failing_obs_het']),str(val.tallySA['failing_obs_homo2'])]),
                     'Missing': val.tallySA[(None,None)],
                     'Set_Missing': val.tallySA[-9],
-                    'Singleton': val.tallySA['singleton'],
-                    'Private_Doubleton': val.tallySA['p_dblton'],
-                    'Doubleton': val.tallySA['doubleton'],
                     'HetHom':"{0:.5f}".format(het_hom),
+                    'IndDepthSum': val.dp_total,
                     'IndMeanDepth':"{0:.5f}".format(mean_depth),
                     }
             # WES - TiTv
@@ -809,9 +806,9 @@ def main():
                 rec_details = {'filter': rec.filter, 'ref': rec.ref, 'alt': rec.alts,
                                          'chr': rec.contig, 'pos': rec.pos}
 
-                [vf,maf,passing_d,failing_d,missing,gt_failed,clean_passing_d,sum_clean,depth_sum,ab_het,subg,subg_c,zhet_dict,zhet_sample_counts] = calcVA_multiallelic(sm_list['dict'],rec_details,subset)
+                [vf,maf,passing_d,failing_d,missing,gt_failed,clean_passing_d,sum_clean,depth_sum,ab_het,subg,subg_c,allele_count_dict,zhet_sample_counts] = calcVA_multiallelic(sm_list['dict'],rec_details,subset)
                 mend_pairs, mend_errors = check_mendelian_errors_multiallelic(prefix_mi, rec)
-                scores = calculate_subgroup_scores_multiallelic(subset, subg, subg_c,zhet_dict,zhet_sample_counts)
+                scores = calculate_subgroup_scores_multiallelic(subset, subg, subg_c,allele_count_dict,zhet_sample_counts)
                 write_subset_stats_multiallelic(prefix_companions, rec, subset, maf ,vf,passing_d,failing_d,missing,gt_failed,clean_passing_d,sum_clean,depth_sum,ab_het,mend_pairs,mend_errors,scores)
 
         
@@ -949,7 +946,7 @@ def main():
         time.sleep(1)
         check_output(["tabix", "-f", vcf_out_filename])
 
-def calculate_subgroup_scores_multiallelic(subset, subg, subg_cntl,zhet_list,zhet_sample_counts):
+def calculate_subgroup_scores_multiallelic(subset, subg, subg_cntl,allele_count_dict,zhet_sample_counts):
     """ calculate_subgroup_scores - generates nClean, Zhet, and pHWE for subgroups
                                     added to TAGs within the INFO field. pHWE-subgroup has
                                     the following criteria, (1) must have N >= 5,
@@ -964,13 +961,13 @@ def calculate_subgroup_scores_multiallelic(subset, subg, subg_cntl,zhet_list,zhe
 
     for k in sorted(mi.sa.subsets[subset]):
         val = subg[k]
-        zhet_val = zhet_list[k]
+        zhet_val = allele_count_dict[k]
         val_cntl = subg_cntl[k]
         total_obs = sum([x + y for x,y in zip(subg[k],subg_cntl[k])])
         zhet_count = zhet_sample_counts[k][0]
         zhet_hom2_count = zhet_sample_counts[k][1]
         scores['nClean_' + k] =  ",".join(map(str,val)) + ';' + ",".join(map(str,val_cntl))
-        scores['Zhet_' + k] = calc_ExcessHet_multiallelic(zhet_val,total_obs,zhet_count,zhet_hom2_count) #zhet_val=allele#'s, zhet_count=het_counts, zhet_hom2_count=homozygous_alts
+        scores['Zhet_' + k] = calc_ExcessHet_multiallelic(zhet_val,total_obs,zhet_count) #zhet_val=allele#'s, zhet_count=het_counts, zhet_hom2_count=homozygous_alts
         scores['pHWE_' + k] = calc_pHWE(*val_cntl) if sum(val_cntl) > 5 else '.'
         if type(scores['Zhet_' + k]) == float:
             scores['Zhet_' + k] = "{0:.5f}".format(scores['Zhet_' + k])

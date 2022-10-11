@@ -213,7 +213,7 @@ def calcVA_multiallelic(snp_samples,rec_details,subset):
 
     #Skipping VLAG 11 (WES)
 
-    [passing_d,failing_d,missing,gt_failed,clean_passing_d,depth_sum,abhet_AD_list,abhet_DP_list,subg,subg_c,zhet_dict,zhet_sample_counts]= count_gt_multiallelic(snp_samples,rec_details)
+    [passing_d,failing_d,missing,gt_failed,clean_passing_d,depth_sum,abhet_AD_list,abhet_DP_list,subg,subg_c,allele_count_dict,zhet_sample_counts]= count_gt_multiallelic(snp_samples,rec_details)
     obs_hom1 = sum(list(passing_d['obs_homo1'].values()))
     obs_het = sum(list(passing_d['obs_het'].values()))
     obs_hom2 = sum(list(passing_d['obs_homo2'].values()))
@@ -297,7 +297,7 @@ def calcVA_multiallelic(snp_samples,rec_details,subset):
         except:
             pass
 
-    return [vf,maf,passing_d,failing_d,missing,gt_failed,clean_passing_d,sum_clean,depth_sum,ab_het,subg,subg_c,zhet_dict,zhet_sample_counts]
+    return [vf,maf,passing_d,failing_d,missing,gt_failed,clean_passing_d,sum_clean,depth_sum,ab_het,subg,subg_c,allele_count_dict,zhet_sample_counts]
 
 def calcVA_chrx(male_snp_samples,female_snp_samples,rec_details,male_subset,female_subset):
     vf = []

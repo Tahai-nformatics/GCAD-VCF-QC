@@ -61,7 +61,7 @@ def calc_ExcessHet(aa, ab, bb):
 
     return [result, maf]
 
-def calc_ExcessHet_multiallelic(alleles,total_obs,het_count,zhet_hom2_count):
+def calc_ExcessHet_multiallelic(alleles,total_obs,het_count):
     #alleles=[1342,3,3,2]
     N = total_obs
     lower = min(alleles)

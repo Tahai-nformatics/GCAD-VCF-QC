@@ -147,7 +147,7 @@ def count_gt_multiallelic(samples,rec_details):
     abhet_DP_lit    (list): List of sum depth (DP) for all passing samples for all alleles
     subgroup_counts (list): genotype count by subgroup
     subgroup_counts_cntrls (list): genotype count by subgroup only on controls
-    zhet_dict          (dict): counts of alleles of subjects and controls
+    allele_count_dict          (dict): counts of alleles of subjects and controls
     zhet_sample_counts (dict): Het and Homozygous_alt counts of subjects and controls
 
     Also alters global objects: mi.sa.tally
@@ -167,7 +167,7 @@ def count_gt_multiallelic(samples,rec_details):
     passing_d = {'obs_homo1':{},'obs_het':{},'obs_homo2':{}}
     failing_d = {'obs_homo1':{},'obs_het':{},'obs_homo2':{}}
     clean_passing_d = {'obs_homo1':{},'obs_het':{},'obs_homo2':{}}
-    zhet_dict = OrderedDict({key:[0 for n in range(0,N+1)] for key in mi.sa.subgroups})
+    allele_count_dict = OrderedDict({key:[0 for n in range(0,N+1)] for key in mi.sa.subgroups})
 
     for i in allele_list:    #Create Passing and Failing Dictionary with keys being all possible Genotypes
             for b in allele_list[i:]:
@@ -233,15 +233,15 @@ def count_gt_multiallelic(samples,rec_details):
                     passing_d[classification][key] += 1
                     if classification == 'obs_homo1':
                         mi.sa.sa_collection[k].tallySA['passing_'+ classification] += 1
-                        zhet_dict[subgroup][0] +=2
+                        allele_count_dict[subgroup][0] +=2
                         if mi.sa.sa_collection[k].is_control():
-                            zhet_dict[subgroup][0] +=2
+                            allele_count_dict[subgroup][0] +=2
                         subgroup_counts, subgroup_counts_cntrls = increment_subgroup(k, 0, subgroup_counts, subgroup_counts_cntrls)
 
                     elif classification == 'obs_het':
                         zhet_sample_counts[subgroup][0] += 1
-                        zhet_dict[subgroup][sm['GT'][0]] +=1
-                        zhet_dict[subgroup][sm['GT'][1]] +=1
+                        allele_count_dict[subgroup][sm['GT'][0]] +=1
+                        allele_count_dict[subgroup][sm['GT'][1]] +=1
                         if 0 in sm['GT']:
                             mi.sa.sa_collection[k].tallySA['passing_obs_het'] += 1
                         else:
@@ -249,21 +249,21 @@ def count_gt_multiallelic(samples,rec_details):
 
                         if mi.sa.sa_collection[k].is_control():
                             zhet_sample_counts[subgroup][0] += 1
-                            zhet_dict[subgroup][sm['GT'][0]] +=1
-                            zhet_dict[subgroup][sm['GT'][1]] +=1
+                            allele_count_dict[subgroup][sm['GT'][0]] +=1
+                            allele_count_dict[subgroup][sm['GT'][1]] +=1
 
                         if str(sm['GT'][0]) != '0' and str(sm['GT'][1]) != '0':  
                             subgroup_counts, subgroup_counts_cntrls = increment_subgroup(k, 2, subgroup_counts, subgroup_counts_cntrls)
                         else:
                             subgroup_counts, subgroup_counts_cntrls = increment_subgroup(k, 1, subgroup_counts, subgroup_counts_cntrls)
                     elif classification == 'obs_homo2':
-                        zhet_dict[subgroup][sm['GT'][1]] +=2
+                        allele_count_dict[subgroup][sm['GT'][1]] +=2
                         zhet_sample_counts[subgroup][1] += 1
                         subgroup_counts, subgroup_counts_cntrls = increment_subgroup(k, 2, subgroup_counts, subgroup_counts_cntrls)
                         mi.sa.sa_collection[k].tallySA['passing_obs_homo2'] += 1
                         if mi.sa.sa_collection[k].is_control():
                             zhet_sample_counts[subgroup][1] += 1
-                            zhet_dict[subgroup][sm['GT'][1]] +=2
+                            allele_count_dict[subgroup][sm['GT'][1]] +=2
                     else:
                         raise TypeError("Weird GT")
         for het_gt in passing_d['obs_het']:
@@ -277,7 +277,7 @@ def count_gt_multiallelic(samples,rec_details):
 
     clean_passing_d = copy.deepcopy(passing_d) 
 
-    return [passing_d,failing_d,missing,gt_failed,clean_passing_d,depth_sum,abhet_AD_list,abhet_DP_list,subgroup_counts, subgroup_counts_cntrls,zhet_dict,zhet_sample_counts]
+    return [passing_d,failing_d,missing,gt_failed,clean_passing_d,depth_sum,abhet_AD_list,abhet_DP_list,subgroup_counts, subgroup_counts_cntrls,allele_count_dict,zhet_sample_counts]
 
 def count_gt_chrx(male_samples,female_samples,rec_details):
     N = len(rec_details['alt'])
