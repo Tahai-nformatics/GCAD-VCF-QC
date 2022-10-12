@@ -1137,69 +1137,67 @@ def find_s_d_chrx(clean_d, samples):
         # singleton
         if total_obs_het == 1 and total_obs_homo_alt == 0:
             if sum(list(clean_d['female']['obs_het'].values())):                    #Het sample is female, use female GT 0/1
-                idv = find_singleton_multiallelic(samples, clean_d['female']['obs_het'].keys())
-                if abc_order[idv].details_dict.SEX == "1":                          #After checking all samples, make sure sample is Female
-                    mi.sa.sa_collection[idv].tallySA['singleton'] += 1
-            elif sum(list(clean_d['male']['obs_homo2'].values())):                  #Het sample is male, use male GT 1/1
-                idv = find_singleton_multiallelic(samples, clean_d['male']['obs_homo2'].keys())
-                if abc_order[idv].details_dict.SEX == "0":                          #After checking all samples, make sure sample is Male
-                    mi.sa.sa_collection[idv].tallySA['singleton'] += 1
-         
+                idv = find_singleton_chrx(samples, clean_d['female']['obs_het'].keys(), "1")
+                if idv: mi.sa.sa_collection[idv].tallySA['singleton'] += 1
+            if sum(list(clean_d['male']['obs_homo2'].values())):                  #Het sample is male, use male GT 1/1
+                idv = find_singleton_chrx(samples, clean_d['male']['obs_homo2'].keys(), "0")
+                if idv: mi.sa.sa_collection[idv].tallySA['singleton'] += 1
          #private_doubleton
         elif total_obs_homo_alt == 1 and total_obs_het == 0:
-            idv = find_private_doubleton_multiallelic(samples,clean_d['female']['obs_homo2'].keys())
-            if abc_order[idv].details_dict.SEX == "1":
-                mi.sa.sa_collection[idv].tallySA['p_dblton'] +=1
-        
+            idv = find_private_doubleton_chrx(samples,clean_d['female']['obs_homo2'].keys(), "1")
+            if idv: mi.sa.sa_collection[idv].tallySA['p_dblton'] +=1
+
         #doubleton
         elif total_obs_het == 2 and total_obs_homo_alt == 0:
             if sum(list(clean_d['male']['obs_homo2'].values())):                #If Male hets, use 1/1 GT
-                dbltons = find_doubletons_multiallelic(samples,clean_d['male']['obs_homo2'].keys())
+                dbltons = find_doubletons_chrx(samples,clean_d['male']['obs_homo2'].keys(), "0")
                 for idv in dbltons:
-                    if abc_order[idv].details_dict.SEX == "0":                  #After checking all samples, make sure sample is Male
-                        mi.sa.sa_collection[idv].tallySA['doubleton'] += 1
+                    mi.sa.sa_collection[idv].tallySA['doubleton'] += 1
             if sum(list(clean_d['female']['obs_het'].values())):                #If Female hets, use 0/1 GT
-                dbltons = find_doubletons_multiallelic(samples,clean_d['female']['obs_het'].keys())
+                dbltons = find_doubletons_chrx(samples,clean_d['female']['obs_het'].keys(), "1")
                 for idv in dbltons:
-                    if abc_order[idv].details_dict.SEX == "1":                  #After checking all samples, make sure sample is Female
-                        mi.sa.sa_collection[idv].tallySA['doubleton'] += 1
+                    mi.sa.sa_collection[idv].tallySA['doubleton'] += 1
 
     else:
         #singleton
         if total_obs_het == 1 and total_obs_homo_ref == 0:
             if sum(list(clean_d['female']['obs_het'].values())):                #If Female hets, use 0/1 GT
-                idv = find_singleton_multiallelic(samples, clean_d['female']['obs_het'].keys())
-                if abc_order[idv].details_dict.SEX == "1":                      #After checking all samples, make sure sample is Female
-                    mi.sa.sa_collection[idv].tallySA['singleton'] += 1
-            elif sum(list(clean_d['male']['obs_homo2'].values())):              #If Male hets, use 1/1 GT
-                idv = find_singleton_multiallelic(samples, clean_d['male']['obs_homo2'].keys())
-                if abc_order[idv].details_dict.SEX == "0":                      #After checking all samples, make sure sample is Male
-                    mi.sa.sa_collection[idv].tallySA['singleton'] += 1
+                idv = find_singleton_chrx(samples, clean_d['female']['obs_het'].keys(), "1")
+                if idv: mi.sa.sa_collection[idv].tallySA['singleton'] += 1
+            if sum(list(clean_d['male']['obs_homo2'].values())):              #If Male hets, use 1/1 GT
+                idv = find_singleton_chrx(samples, clean_d['male']['obs_homo2'].keys(), "0")
+                if idv: mi.sa.sa_collection[idv].tallySA['singleton'] += 1
 
         #private_doubleton
         elif total_obs_homo_ref == 1 and total_obs_het == 0:
             if sum(list(clean_d['male']['obs_homo1'].values())):                #If male Homozygous_ref, use 0/0 GT
-                idv = find_private_doubleton_multiallelic(samples, clean_d['male']['obs_homo1'].keys())
-                if abc_order[idv].details_dict.SEX == "0":                      #After checking all samples, make sure sample is Female
-                    mi.sa.sa_collection[idv].tallySA['p_dblton'] += 1
+                idv = find_private_doubleton_chrx(samples, clean_d['male']['obs_homo1'].keys(), "0")
+                if idv: mi.sa.sa_collection[idv].tallySA['p_dblton'] += 1
             else:                                                               #If female Homozygous_ref, use 0/0 GT
-                idv = find_private_doubleton_multiallelic(samples, clean_d['female']['obs_homo1'].keys())
-                if abc_order[idv].details_dict.SEX == "1":                      #After checking all samples, make sure sample is Male
-                    mi.sa.sa_collection[idv].tallySA['p_dblton'] += 1
+                idv = find_private_doubleton_chrx(samples, clean_d['female']['obs_homo1'].keys(), "1")
+                if idv: mi.sa.sa_collection[idv].tallySA['p_dblton'] += 1
 
         #doubleton
         elif total_obs_het == 2 and total_obs_homo_ref == 0:                    #If Male Het, use 1/1 GT
+            print(f'position : {position} doubleton criteria, {clean_d}')
             if sum(list(clean_d['male']['obs_homo2'].values())):
-                dbltons = find_doubletons_multiallelic(samples,clean_d['male']['obs_homo2'].keys())
+                dbltons = find_doubletons_chrx(samples,clean_d['male']['obs_homo2'].keys(), "0")
                 for idv in dbltons:
-                    if abc_order[idv].details_dict.SEX == "0":                  #After checking all samples, make sure sample is Male
-                        mi.sa.sa_collection[idv].tallySA['doubleton'] += 1
+                    mi.sa.sa_collection[idv].tallySA['doubleton'] += 1
             if sum(list(clean_d['female']['obs_het'].values())):                #If Female het, use 0/1 GT
-                dbltons = find_doubletons_multiallelic(samples,clean_d['female']['obs_het'].keys())
+                dbltons = find_doubletons_chrx(samples,clean_d['female']['obs_het'].keys(), "1")
                 for idv in dbltons:
-                    if abc_order[idv].details_dict.SEX == "1":                  #After checking all samples, make sure sample is Female
-                        mi.sa.sa_collection[idv].tallySA['doubleton'] += 1
+                    mi.sa.sa_collection[idv].tallySA['doubleton'] += 1
 
+def find_singleton(samples):
+    for k, sm in samples.items():
+        if sm['GT'] in {(0,1), (1,0)}:
+            try:
+                if (sm['DP'] >= cfg.MINDP
+                   and sm['GQ'] >= cfg.MINGQ):
+                        return k
+            except TypeError:  # TypeError: unorderable types: NoneType() < int() (missing DP)
+                continue
 
 def find_singleton_multiallelic(samples, het_alleles):
     for k, sm in samples.items():
@@ -1212,13 +1210,26 @@ def find_singleton_multiallelic(samples, het_alleles):
                 except TypeError:  # TypeError: unorderable types: NoneType() < int() (missing DP)
                     continue
 
-def find_singleton(samples):
+def find_singleton_chrx(samples, het_alleles, gender):
+    abc_order = OrderedDict(sorted(mi.sa.sa_collection.items()))
     for k, sm in samples.items():
-        if sm['GT'] in {(0,1), (1,0)}:
+        if gender == abc_order[k].details_dict.SEX:
+            for gts in het_alleles:
+                if sm['GT'] in gts:
+                    try:
+                        if (sm['DP'] >= cfg.MINDP
+                            and sm['GQ'] >= cfg.MINGQ):
+                                return k
+                    except TypeError:  # TypeError: unorderable types: NoneType() < int() (missing DP)
+                        continue
+
+def find_private_doubleton(samples, allele):
+    for k, sm in samples.items():
+        if sm['GT'] == (allele, allele):
             try:
                 if (sm['DP'] >= cfg.MINDP
                    and sm['GQ'] >= cfg.MINGQ):
-                        return k
+                    return k
             except TypeError:  # TypeError: unorderable types: NoneType() < int() (missing DP)
                 continue
 
@@ -1232,6 +1243,37 @@ def find_private_doubleton_multiallelic(samples, allele):
                         return k
                 except TypeError:  # TypeError: unorderable types: NoneType() < int() (missing DP)
                     continue
+
+def find_singleton_chrx(samples, het_alleles, gender):
+    abc_order = OrderedDict(sorted(mi.sa.sa_collection.items()))
+    for k, sm in samples.items():
+        if gender == abc_order[k].details_dict.SEX:
+            for gts in het_alleles:
+                if sm['GT'] in gts:
+                    try:
+                        if (sm['DP'] >= cfg.MINDP
+                            and sm['GQ'] >= cfg.MINGQ):
+                                if gender == abc_order[k].details_dict.SEX:
+                                    return k
+                    except TypeError:  # TypeError: unorderable types: NoneType() < int() (missing DP)
+                        continue
+
+def find_doubletons(samples):
+    k_list = list()
+    for k,sm in samples.items():
+        if sm['GT'] in {(0,1), (1,0)}:
+            try:
+                if (sm['DP'] >= cfg.MINDP
+                   and sm['GQ'] >= cfg.MINGQ):
+                    k_list.append(k)
+            except TypeError:  #TypeError: unorderable types: NoneType() < int() (missing DP)
+                continue
+
+        if len(k_list) == 2:
+            return k_list
+
+    return k_list
+ 
 def find_doubletons_multiallelic(samples, het_alleles):
     k_list = list()
     for k,sm in samples.items():
@@ -1249,34 +1291,23 @@ def find_doubletons_multiallelic(samples, het_alleles):
 
     return k_list
 
-
-def find_private_doubleton(samples, allele):
-    for k, sm in samples.items():
-        if sm['GT'] == (allele, allele):
-            try:
-                if (sm['DP'] >= cfg.MINDP
-                   and sm['GQ'] >= cfg.MINGQ):
-                    return k
-            except TypeError:  # TypeError: unorderable types: NoneType() < int() (missing DP)
-                continue
-
-
-def find_doubletons(samples):
+def find_doubletons_chrx(samples, het_alleles, gender):
+    abc_order = OrderedDict(sorted(mi.sa.sa_collection.items()))
     k_list = list()
     for k,sm in samples.items():
-        if sm['GT'] in {(0,1), (1,0)}:
-            try:
-                if (sm['DP'] >= cfg.MINDP
-                   and sm['GQ'] >= cfg.MINGQ):
-                    k_list.append(k)
-            except TypeError:  #TypeError: unorderable types: NoneType() < int() (missing DP)
-                continue
-
-        if len(k_list) == 2:
-            return k_list
+        if gender == abc_order[k].details_dict.SEX:
+            for gts in het_alleles:
+                if sm['GT'] in gts:
+                    try:
+                        if (sm['DP'] >= cfg.MINDP
+                            and sm['GQ'] >= cfg.MINGQ):
+                                k_list.append(k)
+                    except TypeError:  #TypeError: unorderable types: NoneType() < int() (missing DP)
+                        continue
+                if len(k_list) == 2:
+                    return k_list
 
     return k_list
-
 
 def gather_intersect_fam_vcf_samples(vcf_samples, fam_samples):
     """
