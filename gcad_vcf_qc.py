@@ -767,7 +767,7 @@ def main():
     vcf_out_hdr.add_meta('INFO', items=[('ID', 'VariantType'), ('Number',1), ('Type', 'String'), ('Description','Variant type description')])
 
     vcf_out_hdr.add_meta('qc_tool', value=os.path.basename(__file__))
-    #vcf_out_hdr.add_meta('qc_tool-version', value=check_output(["git", "--git-dir", os.path.dirname(__file__) + "/.git", "rev-parse", "--short", "HEAD"]).strip())
+    vcf_out_hdr.add_meta('qc_tool-version', value=check_output(["git", "--git-dir", os.path.dirname(__file__) + "/.git", "rev-parse", "--short", "HEAD"]).strip())
     vcf_out_hdr.add_meta('qc_tool-arguments', value="{}".format(args))
 
     # Output filename for companions
