@@ -403,7 +403,7 @@ def write_subset_stats_chrx(prefix, rec, subset,vf,passing_d_male,passing_d_fema
         row = {'CHR': rec.contig,
                'POS': rec.pos,
             'PASS_Homo_Ref':str(list(passing_d_male['obs_homo1'].values())[0])+";"+str(list(passing_d_female['obs_homo1'].values())[0]),
-            "PASS_Het":",".join(str(x) for x in passing_d_male['obs_het'].values())+";"+".".join(str(x) for x in passing_d_female['obs_het'].values()),
+            "PASS_Het":"0"+";"+".".join(str(x) for x in passing_d_female['obs_het'].values()),
             "PASS_Homo_Alt":",".join(str(x) for x in passing_d_male['obs_homo2'].values())+";"+",".join(str(x) for x in passing_d_female['obs_homo2'].values()),
             'FAIL_Homo_Ref':",".join(str(x) for x in failing_d_male['obs_homo1'].values())+";"+",".join(str(x) for x in failing_d_female['obs_homo1'].values()),
             'FAIL_Het':",".join(str(x) for x in failing_d_male['obs_het'].values())+";"+",".join(str(x) for x in failing_d_female['obs_het'].values()),
@@ -1199,7 +1199,6 @@ def find_s_d_chrx(clean_d, samples):
 
         #doubleton
         elif total_obs_het == 2 and total_obs_homo_ref == 0:                    #If Male Het, use 1/1 GT
-            print(f'position : {position} doubleton criteria, {clean_d}')
             if sum(list(clean_d['male']['obs_homo2'].values())):
                 dbltons = find_doubletons_chrx(samples,clean_d['male']['obs_homo2'].keys(), "0")
                 for idv in dbltons:
