@@ -810,10 +810,15 @@ def main():
                 mend_pairs, mend_errors = check_mendelian_errors_multiallelic(prefix_mi, rec)
                 scores = calculate_subgroup_scores_multiallelic(subset, subg, subg_c,allele_count_dict,zhet_sample_counts)
                 write_subset_stats_multiallelic(prefix_companions, rec, subset, maf ,vf,passing_d,failing_d,missing,gt_failed,clean_passing_d,sum_clean,depth_sum,ab_het,mend_pairs,mend_errors,scores)
-
-        
             find_s_d_multiallelic(clean_passing_d,rec.samples)
+       
+
+            if args.no_output_vcf == False:
+                vcf_out.write(rec)
         
+        if args.no_output_vcf == False:
+            vcf_out.close()
+
         end = time.time()
         print("total_time:{0:.2f}".format(end - start))
         print("process_time:{0:.2f}".format(end - start_p))
@@ -821,6 +826,11 @@ def main():
         if ct > 0:
             print("rate:{0:.1f}".format(ct/(end - start_p)))
         write_indiv_summary_multiallelic(prefix_indiv, isWES)
+
+        if args.no_output_vcf == False:
+        # create index
+            time.sleep(1)
+            check_output(["tabix", "-f", vcf_out_filename])
 
     elif args.is_chrx:
         samplesDict_male,samplesDict_female = extract_subsets_chrx(args.fam)
@@ -842,6 +852,13 @@ def main():
                 scores = calculate_subgroup_scores_chrx(subset_male, subg_male,subg_female, subg_c_male,subg_c_female,zhet_dict,zhet_sample_counts)
                 write_subset_stats_chrx(prefix_companions, rec, subset_male,vf,passing_d_male,passing_d_female,failing_d_male,failing_d_female,missing,gt_failed,clean_d,sum_clean,depth_sum,ab_het, scores)   #No mend_pairs, errors
             find_s_d_chrx(clean_d, rec.samples)
+            
+            if args.no_output_vcf == False:
+                vcf_out.write(rec)
+
+        if args.no_output_vcf == False:
+            vcf_out.close()
+
         end = time.time()
         print("total_time:{0:.2f}".format(end - start))
         print("process_time:{0:.2f}".format(end - start_p))
@@ -850,6 +867,10 @@ def main():
             print("rate:{0:.1f}".format(ct/(end - start_p)))
         write_indiv_summary_chrx(prefix_indiv, isWES)
 
+        if args.no_output_vcf == False:
+        # create index
+            time.sleep(1)
+            check_output(["tabix", "-f", vcf_out_filename])
     else: #Run analysis on biallelic chromosome
     # loop over each variant in VCF
         for rec in vcf_in.fetch(rChr, rStart, rEnd):
