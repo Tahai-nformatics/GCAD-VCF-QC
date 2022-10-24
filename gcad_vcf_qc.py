@@ -1050,9 +1050,8 @@ def calculate_subgroup_scores_chrx(subset, subg_male,subg_female, subg_cntl_male
         total_obs_female = sum([x + y for x,y in zip(subg_female[k],subg_cntl_female[k])])
         total_obs = total_obs_male + total_obs_female
         zhet_count = zhet_sample_counts[k][0]
-        zhet_hom2_count = zhet_sample_counts[k][1]
         scores['nClean_' + k] = ",".join((str(val_male[0]), str(val_male[2]))) + ',' + ",".join(map(str,val_female)) + ';' + ",".join((str(val_cntl_male[0]), str(val_cntl_male[2]))) + "," + ",".join(map(str,val_cntl_female))
-        scores['Zhet_' + k] = calc_ExcessHet_multiallelic(zhet_val,total_obs_female,zhet_count,zhet_hom2_count)
+        scores['Zhet_' + k] = calc_ExcessHet_multiallelic(zhet_val,total_obs_female,zhet_count)
         scores['pHWE_' + k] = calc_pHWE(*val_cntl_female) if sum(val_cntl_female) >= 5 else '.'
         if type(scores['Zhet_' + k]) == float:
             scores['Zhet_' + k] = "{0:.5f}".format(scores['Zhet_' + k])
