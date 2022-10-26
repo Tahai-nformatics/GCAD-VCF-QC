@@ -326,6 +326,43 @@ def write_subset_stats_chrx(prefix, rec, subset,vf,passing_d_male,passing_d_fema
                  'chr': rec.contig, 'pos': rec.pos}
 
 
+    #Calculate VTYPE
+    if len(rec.alts) > 1:   #Check if multiallelic Chrx
+        alts_vtype = []
+        for alts in rec.alts:
+            ct = 0
+            if alts != "*":
+                if len(rec.ref) != len(alts):
+                    vtype='INDEL'
+                    alts_vtype.append(vtype)
+                    continue
+                for i in range(len(rec.ref)):   # IF length of ref and alt is same...
+                    if rec.ref[i] != alts[i]:   #If there is mismatch in BP
+                        vtype='SNP'
+                        ct +=1           #
+                if ct >1:
+                    vtype='INDEL'
+                    alts_vtype.append(vtype)
+                elif ct == 1:
+                    vtype='SNP'
+                    alts_vtype.append(vtype)
+
+        if ( 'SNP' in alts_vtype ) and ( 'INDEL' in alts_vtype ):
+            vtype='MULTI_MIX'
+        elif 'SNP' in alts_vtype:
+            vtype='MULTI_SNP'
+        elif 'INDEL' in alts_vtype:
+            vtype='MULTI_INDEL'
+        else:
+            raise "VTYPE error"
+
+    else: #Biallelic VCF
+        vtype = "SNV"
+        if len(rec.ref) > 1:
+            vtype = "Deletion"
+        elif len(rec.alts[0]) > 1:
+            vtype = "Insertion"
+
     outfile = '{}.{}.tsv'.format(prefix, subset)
     newfile = not os.path.exists(outfile)
     callrate = 1 - (missing + gt_failed) / (missing + gt_failed + sum_clean)
@@ -340,14 +377,6 @@ def write_subset_stats_chrx(prefix, rec, subset,vf,passing_d_male,passing_d_fema
     temp = 2 * (sum(list(clean_d['female']['obs_homo1'].values())) + sum(list(clean_d['female']['obs_homo2'].values())) + sum(list(clean_d['female']['obs_het'].values()))) + sum(list(clean_d['male']['obs_homo1'].values())) + sum(list(clean_d['male']['obs_homo2'].values()))
 
 
-
-
-#Calculate VTYPE
-    vtype = "SNV"
-    if len(rec.ref) > 1:
-        vtype = "Deletion"
-    elif len(rec.alts[0]) > 1:
-        vtype = "Insertion"
 
 
 #For MAF calculation, set Male_Passing_Het to 0
@@ -427,7 +456,8 @@ def write_subset_stats_chrx(prefix, rec, subset,vf,passing_d_male,passing_d_fema
             'QUAL':qual,
             'FILTER':",".join(rec.filter.keys()),
             'VTYPE': vtype,
-            'MaleHet': ",".join(str(x) for x in clean_d['male']['obs_het'].values())
+            'MaleHet':sum(clean_d['male']['obs_het'].values())
+            #'MaleHet': ",".join(str(x) for x in clean_d['male']['obs_het'].values())
             }
         row.update(scores)
         writer.writerow(row)
@@ -1260,6 +1290,20 @@ def find_private_doubleton_multiallelic(samples, allele):
                     if (sm['DP'] >= cfg.MINDP
                         and sm['GQ'] >= cfg.MINGQ):
                         return k
+                except TypeError:  # TypeError: unorderable types: NoneType() < int() (missing DP)
+                    continue
+
+
+def find_private_doubleton_chrx(samples, allele, gender):
+    abc_order = OrderedDict(sorted(mi.sa.sa_collection.items()))
+    for k, sm in samples.items():
+        for gts in allele:
+            if (sm['GT']) in gts:
+                try:
+                    if gender == abc_order[k].details_dict.SEX:
+                        if (sm['DP'] >= cfg.MINDP
+                            and sm['GQ'] >= cfg.MINGQ):
+                            return k
                 except TypeError:  # TypeError: unorderable types: NoneType() < int() (missing DP)
                     continue
 
