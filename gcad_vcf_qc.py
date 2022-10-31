@@ -432,7 +432,7 @@ def write_subset_stats_chrx(prefix, rec, subset,vf,passing_d_male,passing_d_fema
         row = {'CHR': rec.contig,
                'POS': rec.pos,
             'PASS_Homo_Ref':str(list(passing_d_male['obs_homo1'].values())[0])+";"+str(list(passing_d_female['obs_homo1'].values())[0]),
-            "PASS_Het":"0"+";"+".".join(str(x) for x in passing_d_female['obs_het'].values()),
+            "PASS_Het":"0"+";"+",".join(str(x) for x in passing_d_female['obs_het'].values()),
             "PASS_Homo_Alt":",".join(str(x) for x in passing_d_male['obs_homo2'].values())+";"+",".join(str(x) for x in passing_d_female['obs_homo2'].values()),
             'FAIL_Homo_Ref':",".join(str(x) for x in failing_d_male['obs_homo1'].values())+";"+",".join(str(x) for x in failing_d_female['obs_homo1'].values()),
             'FAIL_Het':",".join(str(x) for x in failing_d_male['obs_het'].values())+";"+",".join(str(x) for x in failing_d_female['obs_het'].values()),
@@ -592,8 +592,7 @@ def write_indiv_summary_chrx(prefix, isWES):
 
     with open(outfile, 'w') as csvfile:
         fieldnames = ['SampleID','SEX', 'Pass', 'Fail','Missing', 'Set_Missing',
-                      'Singleton','Private_Doubleton','Doubleton','HetHom',
-                      'Ti','Tv','TiTvRatio','IndDepthSum', 'IndMeanDepth',]
+                      'Singleton','Private_Doubleton','Doubleton','HetHom','IndDepthSum','IndMeanDepth']
 
         if isWES:
            fieldnames.extend(['Ti_WES','Tv_WES','TiTvRatio_WES'])
@@ -606,7 +605,8 @@ def write_indiv_summary_chrx(prefix, isWES):
             
             ti_tv = val.tallySA['ti'] / val.tallySA['tv'] if val.tallySA['tv'] else 0
 
-            het_hom = val.tallySA['passing_obs_het']/val.tallySA['passing_obs_homo2'] if val.tallySA['passing_obs_homo2'] else 0
+            #het_hom = val.tallySA['passing_obs_het']/val.tallySA['passing_obs_homo2'] if val.tallySA['passing_obs_homo2'] else 0
+            het_hom = (val.tallySA['passing_obs_het'] /val.tallySA['passing_obs_homo2'] if val.tallySA['passing_obs_homo2'] else 0) if val.details_dict.SEX == "1" else 0
 
             # mean_depth
             good_gt = val.tallySA[(0,0)] + val.tallySA['passing_obs_homo2'] + val.tallySA['passing_obs_het']
@@ -615,7 +615,8 @@ def write_indiv_summary_chrx(prefix, isWES):
 
 
             row = {'SampleID': indiv, 'SEX': val.details_dict.SEX,
-                    'Pass': ",".join([str(val.tallySA['passing_obs_homo1']),str(val.tallySA['passing_obs_het']),str(val.tallySA['passing_obs_homo2'])]),
+                    #'Pass': ",".join([str(val.tallySA['passing_obs_homo1']),str(val.tallySA['passing_obs_het']),str(val.tallySA['passing_obs_homo2'])]),
+                    'Pass': ",".join([str(val.tallySA['passing_obs_homo1']),str(val.tallySA['passing_obs_het']) if val.details_dict.SEX == "1" else "0",str(val.tallySA['passing_obs_homo2'])]),
                     'Fail':  ",".join([str(val.tallySA['failing_obs_homo1']),str(val.tallySA['failing_obs_het']),str(val.tallySA['failing_obs_homo2'])]),
                     'Missing': val.tallySA[(None,None)],
                     'Set_Missing': val.tallySA[-9],
@@ -623,9 +624,6 @@ def write_indiv_summary_chrx(prefix, isWES):
                     'Private_Doubleton': val.tallySA['p_dblton'],
                     'Doubleton': val.tallySA['doubleton'],
                     'HetHom':"{0:.5f}".format(het_hom),
-                    'Ti': val.tallySA['ti'], 
-                    'Tv': val.tallySA['tv'], 
-                    'TiTvRatio':"{0:.5f}".format(ti_tv),
                     'IndDepthSum': val.dp_total,
                     'IndMeanDepth':"{0:.5f}".format(mean_depth),
                     }

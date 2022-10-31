@@ -393,7 +393,7 @@ def calcVA_chrx(male_snp_samples,female_snp_samples,rec_details,male_subset,fema
     N = len(male_snp_samples)
     c = stats.binom.ppf((1-t),N,e)
     # qbinom((1-t),N,e) #gives number c such that P(bin>c)<t. We reject a position if #male hets > c (strictly greater than)
-    if passing_d_male['obs_het'][((0, 1), (1, 0))] > c:
+    if sum(passing_d_male['obs_het'].values()) > c:
         vf.append(7)
 
 #Add the Male_Hets which "passed" to failing_d_male['obs_het'] and add that to gt_failed
