@@ -584,38 +584,49 @@ def write_indiv_summary(prefix, isWES):
     return
 
 
-def write_indiv_summary_chrx(prefix, isWES):
+def write_indiv_summary_chrx(prefix, isWES, is_multiallelic):
     """
     """
     outfile = '{}.tsv'.format(prefix)
-
-
     with open(outfile, 'w') as csvfile:
-        fieldnames = ['SampleID','SEX', 'Pass', 'Fail','Missing', 'Set_Missing',
-                      'Singleton','Private_Doubleton','Doubleton','HetHom','IndDepthSum','IndMeanDepth']
+        
+        if is_multiallelic:
+            fieldnames = ['SampleID','SEX', 'Pass', 'Fail','Missing', 'Set_Missing',
+                      'HetHom','IndDepthSum','IndMeanDepth']
+        else:
+            fieldnames = ['SampleID','SEX', 'Pass', 'Fail','Missing', 'Set_Missing',
+                      'Singleton','Private_Doubleton','Doubleton','HetHom',
+                      'Ti','Tv','TiTvRatio','IndDepthSum', 'IndMeanDepth',]
 
-        if isWES:
+        if isWES: # Deprecated
            fieldnames.extend(['Ti_WES','Tv_WES','TiTvRatio_WES'])
 
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames , delimiter='\t', lineterminator='\n')
         writer.writeheader()
-
         abc_order = OrderedDict(sorted(mi.sa.sa_collection.items()))
         for indiv, val in abc_order.items():
-            
-            ti_tv = val.tallySA['ti'] / val.tallySA['tv'] if val.tallySA['tv'] else 0
+            if not is_multiallelic:
+                ti_tv = val.tallySA['ti'] / val.tallySA['tv'] if val.tallySA['tv'] else 0
 
-            #het_hom = val.tallySA['passing_obs_het']/val.tallySA['passing_obs_homo2'] if val.tallySA['passing_obs_homo2'] else 0
             het_hom = (val.tallySA['passing_obs_het'] /val.tallySA['passing_obs_homo2'] if val.tallySA['passing_obs_homo2'] else 0) if val.details_dict.SEX == "1" else 0
 
             # mean_depth
             good_gt = val.tallySA[(0,0)] + val.tallySA['passing_obs_homo2'] + val.tallySA['passing_obs_het']
             all_gt = good_gt + val.tallySA[-9]
             mean_depth = val.dp_total / all_gt if all_gt else 0
-
-
-            row = {'SampleID': indiv, 'SEX': val.details_dict.SEX,
-                    #'Pass': ",".join([str(val.tallySA['passing_obs_homo1']),str(val.tallySA['passing_obs_het']),str(val.tallySA['passing_obs_homo2'])]),
+            #Multiallelic ChrX Rows
+            if is_multiallelic:
+                row = {'SampleID': indiv, 'SEX': val.details_dict.SEX,
+                    'Pass': ",".join([str(val.tallySA['passing_obs_homo1']),str(val.tallySA['passing_obs_het']) if val.details_dict.SEX == "1" else "0",str(val.tallySA['passing_obs_homo2'])]),
+                    'Fail':  ",".join([str(val.tallySA['failing_obs_homo1']),str(val.tallySA['failing_obs_het']),str(val.tallySA['failing_obs_homo2'])]),
+                    'Missing': val.tallySA[(None,None)],
+                    'Set_Missing': val.tallySA[-9],
+                    'HetHom':"{0:.5f}".format(het_hom),
+                    'IndDepthSum': val.dp_total,
+                    'IndMeanDepth':"{0:.5f}".format(mean_depth),
+                    }
+            else: #Biallelic Chrx Rows
+                row = {'SampleID': indiv, 'SEX': val.details_dict.SEX,
                     'Pass': ",".join([str(val.tallySA['passing_obs_homo1']),str(val.tallySA['passing_obs_het']) if val.details_dict.SEX == "1" else "0",str(val.tallySA['passing_obs_homo2'])]),
                     'Fail':  ",".join([str(val.tallySA['failing_obs_homo1']),str(val.tallySA['failing_obs_het']),str(val.tallySA['failing_obs_homo2'])]),
                     'Missing': val.tallySA[(None,None)],
@@ -624,9 +635,13 @@ def write_indiv_summary_chrx(prefix, isWES):
                     'Private_Doubleton': val.tallySA['p_dblton'],
                     'Doubleton': val.tallySA['doubleton'],
                     'HetHom':"{0:.5f}".format(het_hom),
+                    'Ti': val.tallySA['ti'], 
+                    'Tv': val.tallySA['tv'], 
+                    'TiTvRatio':"{0:.5f}".format(ti_tv),
                     'IndDepthSum': val.dp_total,
                     'IndMeanDepth':"{0:.5f}".format(mean_depth),
                     }
+
             # WES - TiTv
             if isWES:
                ti_tv_wes = val.tallySA['ti_wes'] if val.tallySA['tv_wes'] == 0 else val.tallySA['ti_wes'] / val.tallySA['tv_wes']
@@ -870,6 +885,13 @@ def main():
                 samplesDict_female[k] = {'set': set(vcf_in.header.samples) and v,'dict':dict() }
                 set_size += len(samplesDict_female[k]['set'])
         for rec in vcf_in.fetch(rChr, rStart, rEnd):
+            if len(rec.alts) > 1:
+            #Initiate multiallelic variable for write_indiv_summary_chrx
+                chrx_is_multiallelic = True
+            else:
+                chrx_is_multiallelic = False
+
+
             samplesDict_male = gather_intersect_fam_vcf_samples(rec.samples, samplesDict_male)
             samplesDict_female = gather_intersect_fam_vcf_samples(rec.samples, samplesDict_female)
             
@@ -893,7 +915,7 @@ def main():
         print("total_processed:{}".format(ct))
         if ct > 0:
             print("rate:{0:.1f}".format(ct/(end - start_p)))
-        write_indiv_summary_chrx(prefix_indiv, isWES)
+        write_indiv_summary_chrx(prefix_indiv, isWES, chrx_is_multiallelic)
 
         if args.no_output_vcf == False:
         # create index
