@@ -82,6 +82,9 @@ def calc_ExcessHet_multiallelic(alleles,total_obs,het_count):
         total_cases_ctrls = sum(alleles) - het_count
         if not het_obs==1.0:
             result = ( math.sqrt(N * (het2_exp-het_obs)**2 / (het_obs * (1 - het_obs))))  * math.copysign(1.0, -t)
+    
+    if result == -0.00000: result = abs(result)
+    
     return result
 
 def calc_pHWE(aa,ab,bb):

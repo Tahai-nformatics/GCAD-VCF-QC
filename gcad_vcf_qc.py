@@ -411,10 +411,10 @@ def write_subset_stats_chrx(prefix, rec, subset,vf,passing_d_male,passing_d_fema
     
     with open(outfile, 'a') as csvfile:
         fieldnames = ['CHR','POS',
-                      'PASS_Homo_Ref','PASS_Het', "PASS_Homo_Alt",
-                      'FAIL_Homo_Ref', 'FAIL_Het', 'FAIL_Homo_Alt',
+                      'PASS_Homoz_Ref','PASS_Het', "PASS_Homoz_Alt",
+                      'FAIL_Homoz_Ref', 'FAIL_Het', 'FAIL_Homoz_Alt',
                       'MISSING', 'GT_FAILED',
-                      'CLEAN_Homo_Ref', 'CLEAN_Het','CLEAN_Homo_Alt',
+                      'CLEAN_Homoz_Ref', 'CLEAN_Het','CLEAN_Homoz_Alt',
                       'MONO','CALLRATE','CALLBAD','GATKPass',
                       'Mendelian_Inconsistency','Mend_pairs','propMI','AF','MEAN_DEPTH', 'HI_DEPTH', 'ABHET',
                       'VFLAGS', 'rsID', 'RefAllele', 'AltAlleles',
@@ -431,17 +431,17 @@ def write_subset_stats_chrx(prefix, rec, subset,vf,passing_d_male,passing_d_fema
         qual = "{0:.2f}".format(rec.qual) if rec.qual is not None else 'NA'
         row = {'CHR': rec.contig,
                'POS': rec.pos,
-            'PASS_Homo_Ref':str(list(passing_d_male['obs_homo1'].values())[0])+";"+str(list(passing_d_female['obs_homo1'].values())[0]),
+            'PASS_Homoz_Ref':str(list(passing_d_male['obs_homo1'].values())[0])+";"+str(list(passing_d_female['obs_homo1'].values())[0]),
             "PASS_Het":"0"+";"+",".join(str(x) for x in passing_d_female['obs_het'].values()),
-            "PASS_Homo_Alt":",".join(str(x) for x in passing_d_male['obs_homo2'].values())+";"+",".join(str(x) for x in passing_d_female['obs_homo2'].values()),
-            'FAIL_Homo_Ref':",".join(str(x) for x in failing_d_male['obs_homo1'].values())+";"+",".join(str(x) for x in failing_d_female['obs_homo1'].values()),
+            "PASS_Homoz_Alt":",".join(str(x) for x in passing_d_male['obs_homo2'].values())+";"+",".join(str(x) for x in passing_d_female['obs_homo2'].values()),
+            'FAIL_Homoz_Ref':",".join(str(x) for x in failing_d_male['obs_homo1'].values())+";"+",".join(str(x) for x in failing_d_female['obs_homo1'].values()),
             'FAIL_Het':",".join(str(x) for x in failing_d_male['obs_het'].values())+";"+",".join(str(x) for x in failing_d_female['obs_het'].values()),
-            'FAIL_Homo_Alt':",".join(str(x) for x in failing_d_male['obs_homo2'].values())+";"+",".join(str(x) for x in failing_d_female['obs_homo2'].values()),
+            'FAIL_Homoz_Alt':",".join(str(x) for x in failing_d_male['obs_homo2'].values())+";"+",".join(str(x) for x in failing_d_female['obs_homo2'].values()),
             'MISSING': missing,
             'GT_FAILED':gt_failed,
-            'CLEAN_Homo_Ref': ",".join(str(x) for x in clean_d['male']['obs_homo1'].values()) + ";" + ",".join(str(x) for x in clean_d['female']['obs_homo1'].values()),
+            'CLEAN_Homoz_Ref': ",".join(str(x) for x in clean_d['male']['obs_homo1'].values()) + ";" + ",".join(str(x) for x in clean_d['female']['obs_homo1'].values()),
             'CLEAN_Het' : str(0) + ";" + ",".join(str(x) for x in clean_d['female']['obs_het'].values()),
-            'CLEAN_Homo_Alt': ",".join(str(x) for x in clean_d['male']['obs_homo2'].values()) + ";" + ",".join(str(x) for x in clean_d['female']['obs_homo2'].values()),
+            'CLEAN_Homoz_Alt': ",".join(str(x) for x in clean_d['male']['obs_homo2'].values()) + ";" + ",".join(str(x) for x in clean_d['female']['obs_homo2'].values()),
             'MONO': int(3 in vf),
             'CALLRATE':"{0:.5f}".format(callrate), 'CALLBAD':int(callrate < (1 - cfg.miss_rate)),
             'GATKPass': int(1 not in vf),
@@ -1039,7 +1039,7 @@ def calculate_subgroup_scores_multiallelic(subset, subg, subg_cntl,allele_count_
         zhet_hom2_count = zhet_sample_counts[k][1]
         scores['nClean_' + k] =  ",".join(map(str,val)) + ';' + ",".join(map(str,val_cntl))
         scores['Zhet_' + k] = calc_ExcessHet_multiallelic(zhet_val,total_obs,zhet_count) #zhet_val=allele#'s, zhet_count=het_counts, zhet_hom2_count=homozygous_alts
-        scores['pHWE_' + k] = calc_pHWE(*val_cntl) if sum(val_cntl) > 5 else '.'
+        scores['pHWE_' + k] = calc_pHWE(*val_cntl) if sum(val_cntl) >= 5 else '.'
         if type(scores['Zhet_' + k]) == float:
             scores['Zhet_' + k] = "{0:.5f}".format(scores['Zhet_' + k])
         if type(scores['pHWE_' + k]) == float:
