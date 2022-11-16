@@ -840,42 +840,43 @@ def main():
 
 
     if args.is_multiallelic:
-        for rec in vcf_in.fetch(rChr, rStart, rEnd):
-            #if rec.pos >= 7929590:
-             
-            samplesDict = gather_intersect_fam_vcf_samples(rec.samples, samplesDict)
-            for subset, sm_list in samplesDict.items():
-                
-                rec_details = {'filter': rec.filter, 'ref': rec.ref, 'alt': rec.alts,
-                                         'chr': rec.contig, 'pos': rec.pos}
+        if not args.is_chrx:
+            for rec in vcf_in.fetch(rChr, rStart, rEnd):
+                #if rec.pos >= 7929590:
+                 
+                samplesDict = gather_intersect_fam_vcf_samples(rec.samples, samplesDict)
+                for subset, sm_list in samplesDict.items():
+                    
+                    rec_details = {'filter': rec.filter, 'ref': rec.ref, 'alt': rec.alts,
+                                             'chr': rec.contig, 'pos': rec.pos}
 
-                [vf,maf,passing_d,failing_d,missing,gt_failed,clean_passing_d,sum_clean,depth_sum,ab_het,subg,subg_c,allele_count_dict,zhet_sample_counts] = calcVA_multiallelic(sm_list['dict'],rec_details,subset)
-                mend_pairs, mend_errors = check_mendelian_errors_multiallelic(prefix_mi, rec)
-                scores = calculate_subgroup_scores_multiallelic(subset, subg, subg_c,allele_count_dict,zhet_sample_counts)
-                write_subset_stats_multiallelic(prefix_companions, rec, subset, maf ,vf,passing_d,failing_d,missing,gt_failed,clean_passing_d,sum_clean,depth_sum,ab_het,mend_pairs,mend_errors,scores)
-            find_s_d_multiallelic(clean_passing_d,rec.samples)
-       
+                    [vf,maf,passing_d,failing_d,missing,gt_failed,clean_passing_d,sum_clean,depth_sum,ab_het,subg,subg_c,allele_count_dict,zhet_sample_counts] = calcVA_multiallelic(sm_list['dict'],rec_details,subset)
+                    mend_pairs, mend_errors = check_mendelian_errors_multiallelic(prefix_mi, rec)
+                    scores = calculate_subgroup_scores_multiallelic(subset, subg, subg_c,allele_count_dict,zhet_sample_counts)
+                    write_subset_stats_multiallelic(prefix_companions, rec, subset, maf ,vf,passing_d,failing_d,missing,gt_failed,clean_passing_d,sum_clean,depth_sum,ab_het,mend_pairs,mend_errors,scores)
+                find_s_d_multiallelic(clean_passing_d,rec.samples)
+           
+
+                if args.no_output_vcf == False:
+                    vcf_out.write(rec)
+            
+            if args.no_output_vcf == False:
+                vcf_out.close()
+
+            end = time.time()
+            print("total_time:{0:.2f}".format(end - start))
+            print("process_time:{0:.2f}".format(end - start_p))
+            print("total_processed:{}".format(ct))
+            if ct > 0:
+                print("rate:{0:.1f}".format(ct/(end - start_p)))
+            write_indiv_summary_multiallelic(prefix_indiv, isWES)
 
             if args.no_output_vcf == False:
-                vcf_out.write(rec)
-        
-        if args.no_output_vcf == False:
-            vcf_out.close()
+            # create index
+                time.sleep(1)
+                check_output(["tabix", "-f", vcf_out_filename])
 
-        end = time.time()
-        print("total_time:{0:.2f}".format(end - start))
-        print("process_time:{0:.2f}".format(end - start_p))
-        print("total_processed:{}".format(ct))
-        if ct > 0:
-            print("rate:{0:.1f}".format(ct/(end - start_p)))
-        write_indiv_summary_multiallelic(prefix_indiv, isWES)
-
-        if args.no_output_vcf == False:
-        # create index
-            time.sleep(1)
-            check_output(["tabix", "-f", vcf_out_filename])
-
-    elif args.is_chrx:
+    if args.is_chrx:
         samplesDict_male,samplesDict_female = extract_subsets_chrx(args.fam)
 
         for k,v in samplesDict_male.items():
