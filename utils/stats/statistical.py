@@ -90,7 +90,7 @@ def calc_ExcessHet_multiallelic(alleles,total_obs,het_count):
 def calc_pHWE(aa,ab,bb):
     """
     """
-
+    
     if (aa < 0
         or ab < 0
         or bb < 0): return -1
@@ -153,7 +153,10 @@ def calc_pHWE(aa,ab,bb):
 
         p_hwe += het_probs[i]
 
-    if p_hwe > 1: p_hwe = '.'
+    if (p_hwe > 0.9999) and (p_hwe < 1.0002):
+        p_hwe = 1
+    
+    elif p_hwe > 1: p_hwe = '.'
 
     return p_hwe
 

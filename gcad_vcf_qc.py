@@ -127,6 +127,7 @@ def extract_subsets_chrx(fam):
                     male_samples[sm.Subset].add(sm.SampID)
                   elif sm.SEX == "1":
                     female_samples[sm.Subset].add(sm.SampID)
+    
     return male_samples, female_samples
 
 
@@ -173,7 +174,6 @@ def write_subset_stats_multiallelic(prefix, rec, subset,maf, vf, passing_d,faili
     
     #MeanDepth    
     mean_depth = depth_sum / total_genotypes if total_genotypes else 0
-
     #CallRate
     callrate = 1 - (missing + gt_failed) / (missing + gt_failed + sum_clean)
 
@@ -276,8 +276,8 @@ def write_subset_stats(prefix, subset, rec, vf, abhet, passing, failing, missing
         # MeanDepth
         total_genotypes = sum_clean + gt_failed
         mean_depth = depth_sum / total_genotypes if total_genotypes else 0
-
         qual = "{0:.2f}".format(rec.qual) if rec.qual is not None else 'NA'
+
 
         vf.sort()
 
@@ -408,7 +408,6 @@ def write_subset_stats_chrx(prefix, rec, subset,vf,passing_d_male,passing_d_fema
     #MeanDepth
     total_genotypes = sum_clean + gt_failed
     mean_depth = depth_sum / total_genotypes if total_genotypes else 0
-    
     with open(outfile, 'a') as csvfile:
         fieldnames = ['CHR','POS',
                       'PASS_Homoz_Ref','PASS_Het', "PASS_Homoz_Alt",
@@ -842,8 +841,6 @@ def main():
     if args.is_multiallelic:
         if not args.is_chrx:
             for rec in vcf_in.fetch(rChr, rStart, rEnd):
-                #if rec.pos >= 7929590:
-                 
                 samplesDict = gather_intersect_fam_vcf_samples(rec.samples, samplesDict)
                 for subset, sm_list in samplesDict.items():
                     
@@ -891,16 +888,16 @@ def main():
                 chrx_is_multiallelic = True
             else:
                 chrx_is_multiallelic = False
-
-
+            
             samplesDict_male = gather_intersect_fam_vcf_samples(rec.samples, samplesDict_male)
             samplesDict_female = gather_intersect_fam_vcf_samples(rec.samples, samplesDict_female)
             
             for (subset_male, sm_list_male), (subset_female, sm_list_female) in zip(samplesDict_male.items(), samplesDict_female.items()):
+                
                 rec_details= {'filter': rec.filter, 'ref': rec.ref, 'alt': rec.alts,
                      'chr': rec.contig, 'pos': rec.pos}
                 [vf,passing_d_male,passing_d_female,failing_d_male,failing_d_female,missing,gt_failed,clean_d,sum_clean,depth_sum,ab_het,subg_male,subg_female,subg_c_male,subg_c_female,zhet_dict,zhet_sample_counts] = calcVA_chrx(sm_list_male['dict'],sm_list_female['dict'],rec_details,subset_male,subset_female)
-                scores = calculate_subgroup_scores_chrx(subset_male, subg_male,subg_female, subg_c_male,subg_c_female,zhet_dict,zhet_sample_counts)
+                scores = calculate_subgroup_scores_chrx(rec.alts,subset_male, subg_male,subg_female, subg_c_male,subg_c_female,zhet_dict,zhet_sample_counts)
                 write_subset_stats_chrx(prefix_companions, rec, subset_male,vf,passing_d_male,passing_d_female,failing_d_male,failing_d_female,missing,gt_failed,clean_d,sum_clean,depth_sum,ab_het, scores)   #No mend_pairs, errors
             find_s_d_chrx(clean_d, rec.samples)
             
@@ -1042,12 +1039,10 @@ def calculate_subgroup_scores_multiallelic(subset, subg, subg_cntl,allele_count_
         scores['Zhet_' + k] = calc_ExcessHet_multiallelic(zhet_val,total_obs,zhet_count) #zhet_val=allele#'s, zhet_count=het_counts, zhet_hom2_count=homozygous_alts
         scores['pHWE_' + k] = calc_pHWE(*val_cntl) if sum(val_cntl) >= 5 else '.'
         if type(scores['Zhet_' + k]) == float:
-            scores['Zhet_' + k] = "{0:.5f}".format(scores['Zhet_' + k])
+            scores['Zhet_' + k] = "{0:.6f}".format(scores['Zhet_' + k])
         if type(scores['pHWE_' + k]) == float:
-            if scores['pHWE_' + k] <= 0.0001:
-                scores['pHWE_' + k] = "{0:.5e}".format(scores['pHWE_' + k])
-            else: 
-                scores['pHWE_' + k] = "{0:.5f}".format(scores['pHWE_' + k])
+            scores['pHWE_' + k] = "{0:.6f}".format(scores['pHWE_' + k])
+    
     return scores
 
 
@@ -1077,7 +1072,7 @@ def calculate_subgroup_scores(subset, subg, subg_cntl):
 
     return scores
 
-def calculate_subgroup_scores_chrx(subset, subg_male,subg_female, subg_cntl_male,subg_cntl_female,zhet_dict,zhet_sample_counts):
+def calculate_subgroup_scores_chrx(alts,subset, subg_male,subg_female, subg_cntl_male,subg_cntl_female,zhet_dict,zhet_sample_counts):
     """ calculate_subgroup_scores - generates nClean, Zhet, and pHWE for subgroups
                                     added to TAGs within the INFO field. pHWE-subgroup has
                                     the following criteria, (1) must have N >= 5,
@@ -1085,32 +1080,58 @@ def calculate_subgroup_scores_chrx(subset, subg_male,subg_female, subg_cntl_male
 
         @return scores - dict() of the added calculations
     """
+    from itertools import combinations_with_replacement
     scores = OrderedDict()
 
     if mi.sa.get_divide():
       subset = subset.split('-')[0]
 
     for k in sorted(mi.sa.subsets[subset]):
-        val_male = subg_male[k]
-        val_female = subg_female[k]
         zhet_val = zhet_dict[k]
-        val_cntl_male = subg_cntl_male[k]
-        val_cntl_female = subg_cntl_female[k]
-        total_cntls = [x + y for x,y in zip(val_cntl_male,val_cntl_female)]
-        total_obs_male = sum([x + y for x,y in zip(subg_male[k],subg_cntl_male[k])])
-        total_obs_female = sum([x + y for x,y in zip(subg_female[k],subg_cntl_female[k])])
+        nclean_female_subg = {k:[]}
+        nclean_female_subg_cntl = {k:[]}
+        phwe_vals = {k:[0,0,0]}
+        total_obs_male = 0
+        total_obs_female = 0
+        for gts in subg_cntl_male[k].keys():
+            total_obs_male += sum([x + y for x,y in zip(subg_male[k][gts].values(),subg_cntl_male[k][gts].values())])
+            total_obs_female += sum([x + y for x,y in zip(subg_female[k][gts].values(),subg_cntl_female[k][gts].values())])
+
         total_obs = total_obs_male + total_obs_female
         zhet_count = zhet_sample_counts[k][0]
-        scores['nClean_' + k] = ",".join((str(val_male[0]), str(val_male[2]))) + ',' + ",".join(map(str,val_female)) + ';' + ",".join((str(val_cntl_male[0]), str(val_cntl_male[2]))) + "," + ",".join(map(str,val_cntl_female))
-        scores['Zhet_' + k] = calc_ExcessHet_multiallelic(zhet_val,total_obs_female,zhet_count)
-        scores['pHWE_' + k] = calc_pHWE(*val_cntl_female) if sum(val_cntl_female) >= 5 else '.'
-        if type(scores['Zhet_' + k]) == float:
-            scores['Zhet_' + k] = "{0:.5f}".format(scores['Zhet_' + k])
-        if type(scores['pHWE_' + k]) == float:
-            if scores['pHWE_' + k] >= 0.000001:
-                scores['pHWE_' + k] = "{0:.12f}".format(scores['pHWE_' + k])
+
+        genotypes = combinations_with_replacement(list(n for n in range(len(alts)+1)), 2)
+        for allele in genotypes:
+            allele_match = (allele[0], allele[1])
+            for classification in subg_female[k]:
+                for (key1, value1), (key2,value2) in zip(subg_female[k][classification].items(), subg_cntl_female[k][classification].items()):
+                    if allele_match in key1:
+                        nclean_female_subg[k].append(subg_female[k][classification][key1])
+                        nclean_female_subg_cntl[k].append(subg_cntl_female[k][classification][key2])
+
+
+        #Treat multiallelic Heterozygous controls with non 0 alleles as obs_homo2 for pHWE calculation
+        for classification in subg_cntl_female[k]:
+            if classification == 'obs_homo1':
+                phwe_vals[k][0] = sum(subg_cntl_female[k][classification].values())
+            elif classification == 'obs_het':
+                for key,val in subg_cntl_female[k][classification].items():
+                    if not 0 in key[0]:
+                        phwe_vals[k][2] += subg_cntl_female[k][classification][key]
+                    else:
+                        phwe_vals[k][1] += subg_cntl_female[k][classification][key]
             else:
-                pass
+                phwe_vals[k][2] += sum(subg_cntl_female[k][classification].values())
+        
+        
+        scores['nClean_' + k] = ",".join((str(x) for x in subg_male[k]['obs_homo1'].values())) +  "," + ",".join((str(x) for x in subg_male[k]['obs_homo2'].values())) +  "," + ",".join((str(x) for x in nclean_female_subg[k])) + ';' + ",".join((str(x) for x in subg_cntl_male[k]['obs_homo1'].values())) + "," + ",".join((str(x) for x in subg_cntl_male[k]['obs_homo2'].values())) + "," + ",".join((str(x) for x in nclean_female_subg_cntl[k]))
+        scores['Zhet_' + k] = calc_ExcessHet_multiallelic(zhet_val,total_obs_female,zhet_count)
+        scores['pHWE_' + k] = calc_pHWE(*phwe_vals[k]) if sum(phwe_vals[k]) >= 5 else '.'
+        if type(scores['Zhet_' + k]) == float:
+            scores['Zhet_' + k] = "{0:.6f}".format(scores['Zhet_' + k])
+        if type(scores['pHWE_' + k]) == float:
+            scores['pHWE_' + k] = "{0:.6f}".format(scores['pHWE_' + k])
+    
     return scores
 
 
