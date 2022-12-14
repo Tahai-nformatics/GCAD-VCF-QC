@@ -578,7 +578,6 @@ def write_indiv_summary(prefix, isWES):
                row['Ti_WES'] = val.tallySA['ti_wes']
                row['Tv_WES'] = val.tallySA['tv_wes']
                row['TiTvRatio_WES'] = "{0:.5f}".format(ti_tv_wes)
-
             writer.writerow(row)
     return
 
@@ -711,10 +710,8 @@ def main():
         regionStr = ".{}:{}-{}".format(rChr, rStart, rEnd)
         rStart -= 1
         if rStart < 0: rStart = 0
-
     if rChr is None and args.chr is not None:
        rChr = args.chr
-
     # Setup globals
     cfg.MINDP = args.min_dp
     cfg.MINGQ = args.min_gq
@@ -837,7 +834,6 @@ def main():
     ct = 0
     start_p = time.time()
 
-
     if args.is_multiallelic:
         if not args.is_chrx:
             for rec in vcf_in.fetch(rChr, rStart, rEnd):
@@ -856,6 +852,8 @@ def main():
 
                 if args.no_output_vcf == False:
                     vcf_out.write(rec)
+
+                ct += 1
             
             if args.no_output_vcf == False:
                 vcf_out.close()
@@ -904,6 +902,8 @@ def main():
             if args.no_output_vcf == False:
                 vcf_out.write(rec)
 
+            ct += 1
+
         if args.no_output_vcf == False:
             vcf_out.close()
 
@@ -919,8 +919,8 @@ def main():
         # create index
             time.sleep(1)
             check_output(["tabix", "-f", vcf_out_filename])
-    else: #Run analysis on biallelic chromosome
-    # loop over each variant in VCF
+    elif not args.is_multiallelic and not args.is_chrx: #Run analysis on biallelic chromosome
+        # loop over each variant in VCF
         for rec in vcf_in.fetch(rChr, rStart, rEnd):
             if len(rec.alts) > 1:
             #print("Warning found multiallelic variant")
@@ -959,7 +959,6 @@ def main():
                 have_target = 0
                 if isWES:
                    have_target = samplesDict[subset]['have_target']
-
                 write_subset_stats(prefix_companions, subset, rec, vf, abhet,
                                    passing, failing, missing, gt_failed, depth_sum, clean_obs,
                                    mend_pairs, mend_errors, scores, vtype,
@@ -1023,11 +1022,64 @@ def calculate_subgroup_scores_multiallelic(subset, subg, subg_cntl,allele_count_
 
         @return scores - dict() of the added calculations
     """
+    from itertools import combinations_with_replacement
     scores = OrderedDict()
-
+    
     if mi.sa.get_divide():
       subset = subset.split('-')[0]
+    for k in sorted(mi.sa.subsets[subset]):
+        zhet_val = allele_count_dict[k]
+        zhet_count = zhet_sample_counts[k][0]
+        phwe_vals = {k:[0,0,0]}
+        nclean_subg = {k:[]}
+        nclean_cntl = {k:[]}
+        phwe_vals = {k:[0,0,0]}
+        total_obs = 0
+        alts = len(allele_count_dict[k]) -1
 
+        for gts in subg_cntl[k].keys():
+            total_obs += sum([x + y for x,y in zip(subg[k][gts].values(),subg_cntl[k][gts].values())])
+            
+        for classification in subg_cntl[k]:
+            if classification == 'obs_homo1':
+                phwe_vals[k][0] = sum(subg_cntl[k][classification].values())
+            elif classification == 'obs_het':
+                for key,val in subg_cntl[k][classification].items():
+                    if not 0 in key[0]:
+                        phwe_vals[k][2] += subg_cntl[k][classification][key]
+                    else:
+                        phwe_vals[k][1] += subg_cntl[k][classification][key]
+            else:
+                phwe_vals[k][2] += sum(subg_cntl[k][classification].values())
+   
+
+        genotypes = combinations_with_replacement(list(n for n in range(alts+1)), 2)
+        for allele in genotypes:
+            allele_match = (allele[0], allele[1])
+            for classification in subg[k]:
+                for (key1, value1), (key2,value2) in zip(subg[k][classification].items(), subg_cntl[k][classification].items()):
+                    if allele_match in key1:
+                        nclean_subg[k].append(subg[k][classification][key1])
+                        nclean_cntl[k].append(subg_cntl[k][classification][key2])
+
+        #print(subg)
+        #print(subg_cntl)
+
+        
+        scores['nClean_' + k] = ",".join((str(x) for x in nclean_subg[k])) + ';' +  ",".join((str(x) for x in nclean_cntl[k]))
+        #scores['nClean_' + k] = ",".join((str(x) for x in subg[k]['obs_homo1'].values())) +  "," + ",".join((str(x) for x in subg[k]['obs_het'].values())) + ',' + ",".join((str(x) for x in subg[k]['obs_homo2'].values())) +  "," + ",".join((str(x) for x in nclean_subg[k])) + ';' + ",".join((str(x) for x in subg_cntl[k]['obs_homo1'].values())) + "," + ",".join((str(x) for x in subg_cntl[k]['obs_homo2'].values())) + "," + ",".join((str(x) for x in nclean_cntl[k]))
+        scores['Zhet_' + k] = calc_ExcessHet_multiallelic(zhet_val,total_obs,zhet_count)
+        scores['pHWE_' + k] = calc_pHWE(*phwe_vals[k]) if sum(phwe_vals[k]) >= 5 else '.'
+        if type(scores['Zhet_' + k]) == float:
+            scores['Zhet_' + k] = "{0:.6f}".format(scores['Zhet_' + k])
+        if type(scores['pHWE_' + k]) == float:
+            scores['pHWE_' + k] = "{0:.6f}".format(scores['pHWE_' + k])
+    
+
+    return scores
+
+
+    """
     for k in sorted(mi.sa.subsets[subset]):
         val = subg[k]
         zhet_val = allele_count_dict[k]
@@ -1044,7 +1096,7 @@ def calculate_subgroup_scores_multiallelic(subset, subg, subg_cntl,allele_count_
             scores['pHWE_' + k] = "{0:.6f}".format(scores['pHWE_' + k])
     
     return scores
-
+    """
 
 def calculate_subgroup_scores(subset, subg, subg_cntl):
     """ calculate_subgroup_scores - generates nClean, Zhet, and pHWE for subgroups
