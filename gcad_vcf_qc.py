@@ -404,7 +404,9 @@ def write_subset_stats_chrx(prefix, rec, subset,vf,passing_d_male,passing_d_fema
                 maf.append(float(("{0:.5f}".format((het_maf_dict[allele] + (  maf_reference_alleles)) / temp))))
             elif allele!=0:
                 maf.append(("{0:.5f}".format((het_maf_dict[allele] + ( homo_maf_dict[allele])) / temp)))
-    
+    else: #All samples failed or missing
+        for allele in allele_list:
+            maf.append(format(0.0, '.5f'))
     #MeanDepth
     total_genotypes = sum_clean + gt_failed
     mean_depth = depth_sum / total_genotypes if total_genotypes else 0
@@ -1062,10 +1064,6 @@ def calculate_subgroup_scores_multiallelic(subset, subg, subg_cntl,allele_count_
                         nclean_subg[k].append(subg[k][classification][key1])
                         nclean_cntl[k].append(subg_cntl[k][classification][key2])
 
-        #print(subg)
-        #print(subg_cntl)
-
-        
         scores['nClean_' + k] = ",".join((str(x) for x in nclean_subg[k])) + ';' +  ",".join((str(x) for x in nclean_cntl[k]))
         #scores['nClean_' + k] = ",".join((str(x) for x in subg[k]['obs_homo1'].values())) +  "," + ",".join((str(x) for x in subg[k]['obs_het'].values())) + ',' + ",".join((str(x) for x in subg[k]['obs_homo2'].values())) +  "," + ",".join((str(x) for x in nclean_subg[k])) + ';' + ",".join((str(x) for x in subg_cntl[k]['obs_homo1'].values())) + "," + ",".join((str(x) for x in subg_cntl[k]['obs_homo2'].values())) + "," + ",".join((str(x) for x in nclean_cntl[k]))
         scores['Zhet_' + k] = calc_ExcessHet_multiallelic(zhet_val,total_obs,zhet_count)
@@ -1074,7 +1072,6 @@ def calculate_subgroup_scores_multiallelic(subset, subg, subg_cntl,allele_count_
             scores['Zhet_' + k] = "{0:.6f}".format(scores['Zhet_' + k])
         if type(scores['pHWE_' + k]) == float:
             scores['pHWE_' + k] = "{0:.6f}".format(scores['pHWE_' + k])
-    
 
     return scores
 
