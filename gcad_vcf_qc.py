@@ -314,7 +314,7 @@ def write_subset_stats(prefix, subset, rec, vf, abhet, passing, failing, missing
 
     return
 
-def write_subset_stats_chrx(prefix, rec, subset,vf,passing_d_male,passing_d_female,failing_d_male,failing_d_female,missing,gt_failed,clean_d,sum_clean,depth_sum,ab_het,scores):
+def write_subset_stats_chrx(prefix, rec, subset,vf,passing_d_male,passing_d_female,failing_d_male,failing_d_female,missing,gt_failed,clean_d,sum_clean,depth_sum,ab_het,mend_pairs,mend_errors,scores):
 
     """
          passing_d = {GT_type: {GT:count}, GT_type: {GT:count}, GT_type: {GT:count}}
@@ -404,7 +404,10 @@ def write_subset_stats_chrx(prefix, rec, subset,vf,passing_d_male,passing_d_fema
                 maf.append(float(("{0:.5f}".format((het_maf_dict[allele] + (  maf_reference_alleles)) / temp))))
             elif allele!=0:
                 maf.append(("{0:.5f}".format((het_maf_dict[allele] + ( homo_maf_dict[allele])) / temp)))
-    
+    else:
+        for allele in allele_list:
+            maf.append(format(0.0, '.5f'))
+
     #MeanDepth
     total_genotypes = sum_clean + gt_failed
     mean_depth = depth_sum / total_genotypes if total_genotypes else 0
@@ -415,7 +418,8 @@ def write_subset_stats_chrx(prefix, rec, subset,vf,passing_d_male,passing_d_fema
                       'MISSING', 'GT_FAILED',
                       'CLEAN_Homoz_Ref', 'CLEAN_Het','CLEAN_Homoz_Alt',
                       'MONO','CALLRATE','CALLBAD','GATKPass',
-                      'Mendelian_Inconsistency','Mend_pairs','propMI','AF','MEAN_DEPTH', 'HI_DEPTH', 'ABHET',
+                      'AF','MEAN_DEPTH', 'HI_DEPTH', 'ABHET',
+                      'Mendelian_Inconsistency','Mend_pairs','propMI',
                       'VFLAGS', 'rsID', 'RefAllele', 'AltAlleles',
                       'QUAL','FILTER','VTYPE','MaleHet',
                      ]
@@ -444,10 +448,10 @@ def write_subset_stats_chrx(prefix, rec, subset,vf,passing_d_male,passing_d_fema
             'MONO': int(3 in vf),
             'CALLRATE':"{0:.5f}".format(callrate), 'CALLBAD':int(callrate < (1 - cfg.miss_rate)),
             'GATKPass': int(1 not in vf),
-            'Mendelian_Inconsistency': '.', 'Mend_pairs':'.', 'propMI':'.',
             'AF': ",".join(str(x) for x in maf),
             'MEAN_DEPTH':"{0:.5f}".format(mean_depth), 'HI_DEPTH':int(mean_depth > cfg.max_dp),
             'ABHET':",".join(str(x) for x in ab_het),
+            'Mendelian_Inconsistency':mend_errors, 'Mend_pairs':mend_pairs,'propMI': "{0:.6f}".format(mend_errors / mend_pairs if mend_pairs >0 else -1), 
             'VFLAGS': ",".join(str(x) for x in vf),
             'rsID': rec.id if rec.id else '.',
             'RefAllele': rec.ref,
@@ -886,17 +890,17 @@ def main():
                 chrx_is_multiallelic = True
             else:
                 chrx_is_multiallelic = False
-            
             samplesDict_male = gather_intersect_fam_vcf_samples(rec.samples, samplesDict_male)
             samplesDict_female = gather_intersect_fam_vcf_samples(rec.samples, samplesDict_female)
-            
             for (subset_male, sm_list_male), (subset_female, sm_list_female) in zip(samplesDict_male.items(), samplesDict_female.items()):
                 
                 rec_details= {'filter': rec.filter, 'ref': rec.ref, 'alt': rec.alts,
                      'chr': rec.contig, 'pos': rec.pos}
                 [vf,passing_d_male,passing_d_female,failing_d_male,failing_d_female,missing,gt_failed,clean_d,sum_clean,depth_sum,ab_het,subg_male,subg_female,subg_c_male,subg_c_female,zhet_dict,zhet_sample_counts] = calcVA_chrx(sm_list_male['dict'],sm_list_female['dict'],rec_details,subset_male,subset_female)
+                mend_pairs, mend_errors = check_mendelian_errors_chrx(prefix_mi, rec)
                 scores = calculate_subgroup_scores_chrx(rec.alts,subset_male, subg_male,subg_female, subg_c_male,subg_c_female,zhet_dict,zhet_sample_counts)
-                write_subset_stats_chrx(prefix_companions, rec, subset_male,vf,passing_d_male,passing_d_female,failing_d_male,failing_d_female,missing,gt_failed,clean_d,sum_clean,depth_sum,ab_het, scores)   #No mend_pairs, errors
+                write_subset_stats_chrx(prefix_companions, rec, subset_male,vf,passing_d_male,passing_d_female,failing_d_male,failing_d_female,missing,gt_failed,clean_d,sum_clean,depth_sum,ab_het,mend_pairs, mend_errors, scores) 
+            
             find_s_d_chrx(clean_d, rec.samples)
             
             if args.no_output_vcf == False:
@@ -1062,13 +1066,8 @@ def calculate_subgroup_scores_multiallelic(subset, subg, subg_cntl,allele_count_
                         nclean_subg[k].append(subg[k][classification][key1])
                         nclean_cntl[k].append(subg_cntl[k][classification][key2])
 
-        #print(subg)
-        #print(subg_cntl)
-
-        
         scores['nClean_' + k] = ",".join((str(x) for x in nclean_subg[k])) + ';' +  ",".join((str(x) for x in nclean_cntl[k]))
-        #scores['nClean_' + k] = ",".join((str(x) for x in subg[k]['obs_homo1'].values())) +  "," + ",".join((str(x) for x in subg[k]['obs_het'].values())) + ',' + ",".join((str(x) for x in subg[k]['obs_homo2'].values())) +  "," + ",".join((str(x) for x in nclean_subg[k])) + ';' + ",".join((str(x) for x in subg_cntl[k]['obs_homo1'].values())) + "," + ",".join((str(x) for x in subg_cntl[k]['obs_homo2'].values())) + "," + ",".join((str(x) for x in nclean_cntl[k]))
-        scores['Zhet_' + k] = calc_ExcessHet_multiallelic(zhet_val,total_obs,zhet_count)
+        scores['Zhet_' + k] = calc_ExcessHet_multiallelic(zhet_val,zhet_count)
         scores['pHWE_' + k] = calc_pHWE(*phwe_vals[k]) if sum(phwe_vals[k]) >= 5 else '.'
         if type(scores['Zhet_' + k]) == float:
             scores['Zhet_' + k] = "{0:.6f}".format(scores['Zhet_' + k])
@@ -1078,25 +1077,6 @@ def calculate_subgroup_scores_multiallelic(subset, subg, subg_cntl,allele_count_
 
     return scores
 
-
-    """
-    for k in sorted(mi.sa.subsets[subset]):
-        val = subg[k]
-        zhet_val = allele_count_dict[k]
-        val_cntl = subg_cntl[k]
-        total_obs = sum([x + y for x,y in zip(subg[k],subg_cntl[k])])
-        zhet_count = zhet_sample_counts[k][0]
-        zhet_hom2_count = zhet_sample_counts[k][1]
-        scores['nClean_' + k] =  ",".join(map(str,val)) + ';' + ",".join(map(str,val_cntl))
-        scores['Zhet_' + k] = calc_ExcessHet_multiallelic(zhet_val,total_obs,zhet_count) #zhet_val=allele#'s, zhet_count=het_counts, zhet_hom2_count=homozygous_alts
-        scores['pHWE_' + k] = calc_pHWE(*val_cntl) if sum(val_cntl) >= 5 else '.'
-        if type(scores['Zhet_' + k]) == float:
-            scores['Zhet_' + k] = "{0:.6f}".format(scores['Zhet_' + k])
-        if type(scores['pHWE_' + k]) == float:
-            scores['pHWE_' + k] = "{0:.6f}".format(scores['pHWE_' + k])
-    
-    return scores
-    """
 
 def calculate_subgroup_scores(subset, subg, subg_cntl):
     """ calculate_subgroup_scores - generates nClean, Zhet, and pHWE for subgroups
@@ -1143,13 +1123,6 @@ def calculate_subgroup_scores_chrx(alts,subset, subg_male,subg_female, subg_cntl
         nclean_female_subg = {k:[]}
         nclean_female_subg_cntl = {k:[]}
         phwe_vals = {k:[0,0,0]}
-        total_obs_male = 0
-        total_obs_female = 0
-        for gts in subg_cntl_male[k].keys():
-            total_obs_male += sum([x + y for x,y in zip(subg_male[k][gts].values(),subg_cntl_male[k][gts].values())])
-            total_obs_female += sum([x + y for x,y in zip(subg_female[k][gts].values(),subg_cntl_female[k][gts].values())])
-
-        total_obs = total_obs_male + total_obs_female
         zhet_count = zhet_sample_counts[k][0]
 
         genotypes = combinations_with_replacement(list(n for n in range(len(alts)+1)), 2)
@@ -1174,16 +1147,14 @@ def calculate_subgroup_scores_chrx(alts,subset, subg_male,subg_female, subg_cntl
                         phwe_vals[k][1] += subg_cntl_female[k][classification][key]
             else:
                 phwe_vals[k][2] += sum(subg_cntl_female[k][classification].values())
-        
-        
+
         scores['nClean_' + k] = ",".join((str(x) for x in subg_male[k]['obs_homo1'].values())) +  "," + ",".join((str(x) for x in subg_male[k]['obs_homo2'].values())) +  "," + ",".join((str(x) for x in nclean_female_subg[k])) + ';' + ",".join((str(x) for x in subg_cntl_male[k]['obs_homo1'].values())) + "," + ",".join((str(x) for x in subg_cntl_male[k]['obs_homo2'].values())) + "," + ",".join((str(x) for x in nclean_female_subg_cntl[k]))
-        scores['Zhet_' + k] = calc_ExcessHet_multiallelic(zhet_val,total_obs_female,zhet_count)
+        scores['Zhet_' + k] = calc_ExcessHet_multiallelic(zhet_val,zhet_count)
         scores['pHWE_' + k] = calc_pHWE(*phwe_vals[k]) if sum(phwe_vals[k]) >= 5 else '.'
         if type(scores['Zhet_' + k]) == float:
             scores['Zhet_' + k] = "{0:.6f}".format(scores['Zhet_' + k])
         if type(scores['pHWE_' + k]) == float:
             scores['pHWE_' + k] = "{0:.6f}".format(scores['pHWE_' + k])
-    
     return scores
 
 
@@ -1502,7 +1473,6 @@ def check_mendelian_errors_multiallelic(prefix, rec):
             mend_pairs += 1
             validparents.append(mother)
             #print('valid parent found')
-
         # mend_error is child having allele not from parents
         if validparents == []:
             continue
@@ -1554,6 +1524,7 @@ def check_mendelian_errors_multiallelic(prefix, rec):
 def check_mendelian_errors(prefix, rec):
     """
     """
+    abc_order = OrderedDict(sorted(mi.sa.sa_collection.items()))
     samples = rec.samples
     mend_pairs = 0
     mend_error = 0
@@ -1564,6 +1535,7 @@ def check_mendelian_errors(prefix, rec):
         father = mi.sa.get_father(kid)
         mother = mi.sa.get_mother(kid)
 
+
         if father in mi.sa.id_list and is_good_gt(samples[ father ]):
             mend_pairs += 1
             validparents.append(father)
@@ -1571,7 +1543,7 @@ def check_mendelian_errors(prefix, rec):
         if mother in mi.sa.id_list and is_good_gt(samples[ mother ]):
             mend_pairs += 1
             validparents.append(mother)
-
+        
         # mend_error is child having allele not from parents
         if validparents == []:
             continue
@@ -1614,11 +1586,10 @@ def check_mendelian_errors(prefix, rec):
                 found_mi_error = 1
 
             #else: clean child
-
+        
         mi.sa.sa_collection[kid].tallySA['mend_pair'] += 1
 
         if found_mi_error:
-            # save details
             p2 = samples[ validparents[1] ]['GT'] if len(validparents)>1 else ('.')
 
             write_mendelian_errors(prefix, rec,
@@ -1626,9 +1597,85 @@ def check_mendelian_errors(prefix, rec):
                                    [samples[ validparents[0] ]['GT'], p2, samples[kid]['GT'] ]
                                    )
             mi.sa.sa_collection[kid].tallySA['vp' + str(len(validparents)) ] += 1
-
     return mend_pairs, mend_error
 
+def check_mendelian_errors_chrx(prefix, rec):
+    """
+    If 1 parent:
+        If child_allele 1 or child_allele 2 != parent_allele 1 or parent_allele 2: Mendelian error
+
+    If 2 parents:
+        If child_allele 1 or child_allele 2 != parent1_allele1 or parent2_allele2: Mendelian error
+        If child_allele 1 or child_allele 2 != parent2_allele1 or parent2_allele1: Mendelian error
+
+    """
+    abc_order = OrderedDict(sorted(mi.sa.sa_collection.items()))
+    samples = rec.samples
+    mend_pairs = 0
+    mend_error = 0
+    for kid in mi.sa.get_mi_kids():
+        if abc_order[kid].details_dict.SEX == "0":
+            if not samples[kid]['GT'][0] == samples[kid]['GT'][1]:
+                continue
+        validparents = []
+        found_mi_error = 0
+        father = mi.sa.get_father(kid)
+        mother = mi.sa.get_mother(kid)
+        if father in mi.sa.id_list and is_good_gt(samples[ father ]):
+            father_allele1 = samples[father]['GT'][0]
+            father_allele2 = samples[father]['GT'][1]
+            if father_allele1 == father_allele2:
+                if abc_order[kid].details_dict.SEX == "1": #It is female
+                    mend_pairs += 1
+                    validparents.append(father)
+        if mother in mi.sa.id_list and is_good_gt(samples[ mother ]):
+            mend_pairs += 1
+            validparents.append(mother)
+        if validparents == []:
+            continue
+        elif len(validparents) == 1: # Only 1 parent
+            kid_allele1 = samples[kid]['GT'][0]
+            kid_allele2 = samples[kid]['GT'][1]
+            if ( kid_allele1 == samples[validparents[0]]['GT'][0] ) or ( kid_allele1 == samples[validparents[0]]['GT'][1] ): #Match
+                continue
+            elif ( kid_allele2 == samples[validparents[0]]['GT'][0] ) or ( kid_allele2 == samples[validparents[0]]['GT'][1] ):
+                continue
+            else:
+                #print(f' MENDELIAN ERROR')
+                mend_error += 1
+                found_mi_error = 1
+        elif len(validparents) == 2: # 2 parents
+            kid_allele1 = samples[kid]['GT'][0]
+            kid_allele2 = samples[kid]['GT'][1]
+            if ( kid_allele1 == samples[validparents[0]]['GT'][0] ) or ( kid_allele1 == samples[validparents[0]]['GT'][1] ): #Kid allele 1 matches parent 1 allele
+                if ( kid_allele2 == samples[validparents[1]]['GT'][0] ) or ( kid_allele2 == samples[validparents[1]]['GT'][1] ): #Kid allele 2 matches parent 2 allele
+                    continue # Clean - Both kid alleles match a parent allele
+                else:
+                    pass #Kid allele 1 matches  parent_1 allele, but kid allele 2 doesn't match parent_2 allele. 
+            if ( kid_allele2 == samples[validparents[0]]['GT'][0] ) or ( kid_allele2 == samples[validparents[0]]['GT'][1]) : # Kid allele 2 matches parent 1 allele
+                if ( kid_allele1 == samples[validparents[1]]['GT'][0] ) or ( kid_allele1 == samples[validparents[1]]['GT'][1] ): #Kid allele 1 matches parent 2 allele
+                    continue # Clean - Both kid alleles match a parent allele
+                else: # Mendelian Error - only 1 kid allele matches a parent allele
+                   # print(f' MENDELIAN ERROR 2')
+                    mend_error += 1
+                    found_mi_error = 1
+            else: # Mendelian Error - no kid alleles match either parent alleles
+                mend_error += 1
+                found_mi_error = 1
+
+            #else: clean child
+
+        mi.sa.sa_collection[kid].tallySA['mend_pair'] += 1
+        if found_mi_error:
+            
+            # save details
+            p2 = samples[ validparents[1] ]['GT'] if len(validparents)>1 else ('.')
+            write_mendelian_errors(prefix, rec,
+                                   [mi.sa.get_fam_id(kid), validparents[0], kid],
+                                   [samples[ validparents[0] ]['GT'], p2, samples[kid]['GT'] ]
+                                   )
+            mi.sa.sa_collection[kid].tallySA['vp' + str(len(validparents)) ] += 1
+    return mend_pairs, mend_error
 
 if __name__ == "__main__":
     main()

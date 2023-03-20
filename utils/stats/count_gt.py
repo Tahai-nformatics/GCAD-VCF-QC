@@ -429,7 +429,7 @@ def count_gt_chrx(male_samples,female_samples,rec_details):
                             pass
                     else:
                         raise TypeError("Weird GT")
-        
+
         tallyPassingSample(k,sm)
     for k,sm in female_samples.items():
         
@@ -479,7 +479,8 @@ def count_gt_chrx(male_samples,female_samples,rec_details):
                         mi.sa.sa_collection[k].tallySA['passing_'+ classification] += 1
                         zhet_dict[subgroup][0] +=2
                         if mi.sa.sa_collection[k].is_control():
-                            zhet_dict[subgroup][0] +=2
+                            pass
+                            #removedzhet_dict[subgroup][0] +=2
                         subgroup_counts_female, subgroup_counts_cntrls_female = increment_subgroup_multiallelic(k, classification, key, subgroup_counts_female, subgroup_counts_cntrls_female)
 
                         #subgroup_counts_female, subgroup_counts_cntrls_female = increment_subgroup(k, 0, subgroup_counts_female, subgroup_counts_cntrls_female)
@@ -494,9 +495,10 @@ def count_gt_chrx(male_samples,female_samples,rec_details):
                             mi.sa.sa_collection[k].tallySA['passing_obs_homo2'] += 1
 
                         if mi.sa.sa_collection[k].is_control():
-                            zhet_sample_counts[subgroup][0] += 1
-                            zhet_dict[subgroup][sm['GT'][0]] +=1
-                            zhet_dict[subgroup][sm['GT'][1]] +=1
+                            pass
+                            #removedzhet_sample_counts[subgroup][0] += 1
+                            #zhet_dict[subgroup][sm['GT'][0]] +=1
+                            #zhet_dict[subgroup][sm['GT'][1]] +=1
 
                         subgroup_counts_female, subgroup_counts_cntrls_female = increment_subgroup_multiallelic(k, classification, key, subgroup_counts_female, subgroup_counts_cntrls_female)
                             #subgroup_counts_female, subgroup_counts_cntrls_female = increment_subgroup(k, 1, subgroup_counts_female, subgroup_counts_cntrls_female)
@@ -509,11 +511,11 @@ def count_gt_chrx(male_samples,female_samples,rec_details):
 
                         #subgroup_counts_female, subgroup_counts_cntrls_female = increment_subgroup(k, 2, subgroup_counts_female, subgroup_counts_cntrls_female)
                         if mi.sa.sa_collection[k].is_control():
-                            zhet_sample_counts[subgroup][1] += 1
-                            zhet_dict[subgroup][sm['GT'][1]] +=2
+                            #zhet_sample_counts[subgroup][1] += 1
+                            #zhet_dict[subgroup][sm['GT'][1]] +=2
+                            pass
                     else:
                         raise TypeError("Weird GT")
-        
         tallyPassingSample(k,sm)
         for het_gt in passing_d_male['obs_het']:
             if sm['GT'] in het_gt:
