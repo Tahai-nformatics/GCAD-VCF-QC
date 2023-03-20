@@ -61,9 +61,9 @@ def calc_ExcessHet(aa, ab, bb):
 
     return [result, maf]
 
-def calc_ExcessHet_multiallelic(alleles,total_obs,het_count):
+def calc_ExcessHet_multiallelic(alleles,het_count):
     #alleles=[1342,3,3,2]
-    N = total_obs
+    N = sum(alleles)/2
     lower = min(alleles)
     total_AC = sum(alleles)
     result = '.'
@@ -77,7 +77,7 @@ def calc_ExcessHet_multiallelic(alleles,total_obs,het_count):
         for i in alleles[1:]:
             het2_exp -= (i/total_AC)**2
    #     print('final het_Exp is: ',het2_exp)
-        het_obs = het_count/total_obs
+        het_obs = het_count/N
         t = het2_exp - het_obs
         total_cases_ctrls = sum(alleles) - het_count
         if not het_obs==1.0:
