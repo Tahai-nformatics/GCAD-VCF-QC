@@ -249,6 +249,9 @@ def calcVA_multiallelic(snp_samples,rec_details,subset):
                 maf.append(float(("{0:.5f}".format((het_maf_dict[allele] + (2 * sum(list(passing_d['obs_homo1'].values())))) / temp))))
             elif allele!=0:
                 maf.append(("{0:.5f}".format((het_maf_dict[allele] + (2 * homo_maf_dict[allele])) / temp)))
+    else: #All samples Missing or failed
+        for allele in allele_list:
+            maf.append(format(0.0, '.5f'))
 
 
     # VFLAG 2
