@@ -132,7 +132,7 @@ def extract_subsets_chrx(fam):
 
 
 
-def write_subset_stats_multiallelic(prefix, rec, subset,maf, vf, passing_d,failing_d, missing,gt_failed,clean_passing_d,sum_clean,depth_sum,ab_het,mend_pairs,mend_errors,scores):
+def write_subset_stats_multiallelic(prefix, rec, subset,maf, vf, passing_d,failing_d, missing,gt_failed,clean_passing_d,sum_clean,depth_sum,ab_het,mend_pairs,mend_errors,scores,VTYPE):
 
     """
          passing_d = {'obs_homo1':{},'obs_het':{},'obs_homo2':{}}
@@ -143,35 +143,7 @@ def write_subset_stats_multiallelic(prefix, rec, subset,maf, vf, passing_d,faili
                  'chr': rec.contig, 'pos': rec.pos}
     total_genotypes = sum_clean + gt_failed
 
-#Determine VTYPE
-    alts_vtype = [] 
-    for alts in rec.alts:
-        ct = 0
-        if alts != "*":
-            if len(rec.ref) != len(alts):
-                VTYPE='INDEL'
-                alts_vtype.append(VTYPE)
-                continue
-            for i in range(len(rec.ref)):   # IF length of ref and alt is same...
-                if rec.ref[i] != alts[i]:   #If there is mismatch in BP
-                    VTYPE='SNP'
-                    ct +=1           #
-            if ct >1:
-                VTYPE='INDEL'
-                alts_vtype.append(VTYPE)
-            elif ct == 1:
-                VTYPE='SNP'
-                alts_vtype.append(VTYPE)
-    
-    if ( 'SNP' in alts_vtype ) and ( 'INDEL' in alts_vtype ):
-        VTYPE='MULTI_MIX'
-    elif 'SNP' in alts_vtype:
-        VTYPE='MULTI_SNP'
-    elif 'INDEL' in alts_vtype:
-        VTYPE='MULTI_INDEL'
-    else:
-        raise "VTYPE error"
-    
+
     #MeanDepth    
     mean_depth = depth_sum / total_genotypes if total_genotypes else 0
     #CallRate
@@ -314,7 +286,7 @@ def write_subset_stats(prefix, subset, rec, vf, abhet, passing, failing, missing
 
     return
 
-def write_subset_stats_chrx(prefix, rec, subset,vf,passing_d_male,passing_d_female,failing_d_male,failing_d_female,missing,gt_failed,clean_d,sum_clean,depth_sum,ab_het,mend_pairs,mend_errors,scores):
+def write_subset_stats_chrx(prefix, rec, subset,vf,passing_d_male,passing_d_female,failing_d_male,failing_d_female,missing,gt_failed,clean_d,sum_clean,depth_sum,ab_het,mend_pairs,mend_errors,scores, vtype):
 
     """
          passing_d = {GT_type: {GT:count}, GT_type: {GT:count}, GT_type: {GT:count}}
@@ -325,43 +297,6 @@ def write_subset_stats_chrx(prefix, rec, subset,vf,passing_d_male,passing_d_fema
     rec_details = {'filter': rec.filter, 'ref': rec.ref, 'alt': rec.alts,
                  'chr': rec.contig, 'pos': rec.pos}
 
-
-    #Calculate VTYPE
-    if len(rec.alts) > 1:   #Check if multiallelic Chrx
-        alts_vtype = []
-        for alts in rec.alts:
-            ct = 0
-            if alts != "*":
-                if len(rec.ref) != len(alts):
-                    vtype='INDEL'
-                    alts_vtype.append(vtype)
-                    continue
-                for i in range(len(rec.ref)):   # IF length of ref and alt is same...
-                    if rec.ref[i] != alts[i]:   #If there is mismatch in BP
-                        vtype='SNP'
-                        ct +=1           #
-                if ct >1:
-                    vtype='INDEL'
-                    alts_vtype.append(vtype)
-                elif ct == 1:
-                    vtype='SNP'
-                    alts_vtype.append(vtype)
-
-        if ( 'SNP' in alts_vtype ) and ( 'INDEL' in alts_vtype ):
-            vtype='MULTI_MIX'
-        elif 'SNP' in alts_vtype:
-            vtype='MULTI_SNP'
-        elif 'INDEL' in alts_vtype:
-            vtype='MULTI_INDEL'
-        else:
-            raise "VTYPE error"
-
-    else: #Biallelic VCF
-        vtype = "SNV"
-        if len(rec.ref) > 1:
-            vtype = "Deletion"
-        elif len(rec.alts[0]) > 1:
-            vtype = "Insertion"
 
     outfile = '{}.{}.tsv'.format(prefix, subset)
     newfile = not os.path.exists(outfile)
@@ -799,10 +734,16 @@ def main():
     # organize new vcf_out header
     vcf_out_hdr = vcf_in.header
 
+
     for k in samplesDict.keys():
         vcf_out_hdr.add_meta('INFO', items=[('ID', 'VFLAGS_' + k), ('Number','.'), ('Type', 'Integer'), ('Description','Pipeline-specific QC variant flags')])
-        vcf_out_hdr.add_meta('INFO', items=[('ID', 'ABHet_' + k), ('Number','1'), ('Type', 'Float'), ('Description','Allelic Read Ratio')])
+        if args.is_multiallelic or args.is_chrx:
+            vcf_out_hdr.add_meta('INFO', items=[('ID', 'ABHet_' + k), ('Number','.'), ('Type', 'String'), ('Description','Allelic Read Ratio')])
+        else: #Biallelic
+            vcf_out_hdr.add_meta('INFO', items=[('ID', 'ABHet_' + k), ('Number','1'), ('Type', 'Float'), ('Description','Allelic Read Ratio')])
 
+
+            
     if isWES:
         vcf_out_hdr.add_meta('INFO', items=[('ID', 'VariantInTargetFraction'), ('Number','.'), ('Type', 'String'), ('Description','Fraction of the variant\'s presence in given target regions')])
         vcf_out_hdr.add_meta('INFO', items=[('ID', 'VariantInTargetRatio'), ('Number',1), ('Type', 'Float'), ('Description','Ratio of the variant\'s presence in given target regions')])
@@ -837,23 +778,72 @@ def main():
 
     ct = 0
     start_p = time.time()
-
+    
+    ## Run analysis on Multiallelic chromosome ##
     if args.is_multiallelic:
         if not args.is_chrx:
             for rec in vcf_in.fetch(rChr, rStart, rEnd):
+                #Calculate Vtype
+                alts_vtype = []
+                for alts in rec.alts:
+                    ct = 0
+                    if alts != "*":
+                        if len(rec.ref) != len(alts):
+                            vtype='INDEL'
+                            alts_vtype.append(vtype)
+                            continue
+                        for i in range(len(rec.ref)):   # IF length of ref and alt is same...
+                            if rec.ref[i] != alts[i]:   #If there is mismatch in BP
+                                vtype='SNP'
+                                ct +=1           #
+                        if ct >1:
+                            vtype='INDEL'
+                            alts_vtype.append(vtype)
+                        elif ct == 1:
+                            VTYPE='SNP'
+                            alts_vtype.append(vtype)
+
+                if ( 'SNP' in alts_vtype ) and ( 'INDEL' in alts_vtype ):
+                    vtype='MULTI_MIX'
+                elif 'SNP' in alts_vtype:
+                    vtype='MULTI_SNP'
+                elif 'INDEL' in alts_vtype:
+                    vtype='MULTI_INDEL'
+                else:
+                    raise "VTYPE error" 
+
                 samplesDict = gather_intersect_fam_vcf_samples(rec.samples, samplesDict)
                 for subset, sm_list in samplesDict.items():
                     
                     rec_details = {'filter': rec.filter, 'ref': rec.ref, 'alt': rec.alts,
                                              'chr': rec.contig, 'pos': rec.pos}
-
+                    #Calculate stats
                     [vf,maf,passing_d,failing_d,missing,gt_failed,clean_passing_d,sum_clean,depth_sum,ab_het,subg,subg_c,allele_count_dict,zhet_sample_counts] = calcVA_multiallelic(sm_list['dict'],rec_details,subset)
+                    
+                    #MI
                     mend_pairs, mend_errors = check_mendelian_errors_multiallelic(prefix_mi, rec)
+                    
+                    #pHWE per subgroup
                     scores = calculate_subgroup_scores_multiallelic(subset, subg, subg_c,allele_count_dict,zhet_sample_counts)
-                    write_subset_stats_multiallelic(prefix_companions, rec, subset, maf ,vf,passing_d,failing_d,missing,gt_failed,clean_passing_d,sum_clean,depth_sum,ab_het,mend_pairs,mend_errors,scores)
+                    
+                    #Companion file
+                    write_subset_stats_multiallelic(prefix_companions, rec, subset, maf ,vf,passing_d,failing_d,missing,gt_failed,clean_passing_d,sum_clean,depth_sum,ab_het,mend_pairs,mend_errors,scores,vtype)
+                
+
+                    #Append VFLAGS to INFO field
+                    rec.info[ "VFLAGS_" + subset ] = vf
+
+                    #Append subset ABHet to INFO field
+
+                    #abhet_vcf = [str(item) for item in ab_het]
+                    rec.info[ "ABHet_" + subset ] = [str(num) for num in ab_het]
+
+                    #Append VariantType to INFO field
+                    rec.info[ "VariantType" ] = vtype
+
+
                 find_s_d_multiallelic(clean_passing_d,rec.samples)
            
-
                 if args.no_output_vcf == False:
                     vcf_out.write(rec)
 
@@ -870,11 +860,12 @@ def main():
                 print("rate:{0:.1f}".format(ct/(end - start_p)))
             write_indiv_summary_multiallelic(prefix_indiv, isWES)
 
-            if args.no_output_vcf == False:
+        if args.no_output_vcf == False:
             # create index
-                time.sleep(1)
-                check_output(["tabix", "-f", vcf_out_filename])
+            time.sleep(1)
+            check_output(["tabix", "-f", vcf_out_filename])
 
+    ## Run analysis on ChrX (Biallelic/Multiallelic) chromosome ##
     if args.is_chrx:
         samplesDict_male,samplesDict_female = extract_subsets_chrx(args.fam)
 
@@ -886,21 +877,74 @@ def main():
                 set_size += len(samplesDict_female[k]['set'])
         for rec in vcf_in.fetch(rChr, rStart, rEnd):
             if len(rec.alts) > 1:
-            #Initiate multiallelic variable for write_indiv_summary_chrx
+            #Initiate multiallelic variable for write_indiv_summary_chrx and find vtype
                 chrx_is_multiallelic = True
-            else:
+                alts_vtype = []
+                for alts in rec.alts:
+                    ct = 0
+                    if alts != "*":
+                        if len(rec.ref) != len(alts):
+                            vtype='INDEL'
+                            alts_vtype.append(vtype)
+                            continue
+                        for i in range(len(rec.ref)):   # IF length of ref and alt is same...
+                            if rec.ref[i] != alts[i]:   #If there is mismatch in BP
+                                vtype='SNP'
+                                ct +=1           #
+                        if ct >1:
+                            vtype='INDEL'
+                            alts_vtype.append(vtype)
+                        elif ct == 1:
+                            vtype='SNP'
+                            alts_vtype.append(vtype)
+
+                if ( 'SNP' in alts_vtype ) and ( 'INDEL' in alts_vtype ):
+                    vtype='MULTI_MIX'
+                elif 'SNP' in alts_vtype:
+                    vtype='MULTI_SNP'
+                elif 'INDEL' in alts_vtype:
+                    vtype='MULTI_INDEL'
+                else:
+                    raise "VTYPE error" 
+             
+            else: #Initiate biallelic variable for write_indiv_summary_chrx and find vtype
                 chrx_is_multiallelic = False
+                vtype = "SNV"
+                if len(rec.ref) > 1:
+                    vtype = "Deletion"
+                elif len(rec.alts[0]) > 1:
+                    vtype = "Insertion" 
+
             samplesDict_male = gather_intersect_fam_vcf_samples(rec.samples, samplesDict_male)
             samplesDict_female = gather_intersect_fam_vcf_samples(rec.samples, samplesDict_female)
             for (subset_male, sm_list_male), (subset_female, sm_list_female) in zip(samplesDict_male.items(), samplesDict_female.items()):
                 
                 rec_details= {'filter': rec.filter, 'ref': rec.ref, 'alt': rec.alts,
                      'chr': rec.contig, 'pos': rec.pos}
+                
+                #Calculate stats
                 [vf,passing_d_male,passing_d_female,failing_d_male,failing_d_female,missing,gt_failed,clean_d,sum_clean,depth_sum,ab_het,subg_male,subg_female,subg_c_male,subg_c_female,zhet_dict,zhet_sample_counts] = calcVA_chrx(sm_list_male['dict'],sm_list_female['dict'],rec_details,subset_male,subset_female)
+                
+                #MI 
                 mend_pairs, mend_errors = check_mendelian_errors_chrx(prefix_mi, rec)
+                
+                #pHWE per subgroup
                 scores = calculate_subgroup_scores_chrx(rec.alts,subset_male, subg_male,subg_female, subg_c_male,subg_c_female,zhet_dict,zhet_sample_counts)
-                write_subset_stats_chrx(prefix_companions, rec, subset_male,vf,passing_d_male,passing_d_female,failing_d_male,failing_d_female,missing,gt_failed,clean_d,sum_clean,depth_sum,ab_het,mend_pairs, mend_errors, scores) 
-            
+                
+                #Companion file
+                write_subset_stats_chrx(prefix_companions, rec, subset_male,vf,passing_d_male,passing_d_female,failing_d_male,failing_d_female,missing,gt_failed,clean_d,sum_clean,depth_sum,ab_het,mend_pairs, mend_errors, scores, vtype) 
+                
+                
+                # Append subset VFLAGS to INFO field
+                rec.info[ "VFLAGS_" + subset_female ] = vf
+
+                #Append subset ABHet to INFO field
+                rec.info[ "ABHet_" + subset_female ] = [str(num) for num in ab_het]
+
+                #Append VariantType to INFO field
+                rec.info[ "VariantType" ] = vtype
+
+
             find_s_d_chrx(clean_d, rec.samples)
             
             if args.no_output_vcf == False:
@@ -917,13 +961,17 @@ def main():
         print("total_processed:{}".format(ct))
         if ct > 0:
             print("rate:{0:.1f}".format(ct/(end - start_p)))
+        
         write_indiv_summary_chrx(prefix_indiv, isWES, chrx_is_multiallelic)
-
-        if args.no_output_vcf == False:
+    
+    if args.no_output_vcf == False:
         # create index
-            time.sleep(1)
-            check_output(["tabix", "-f", vcf_out_filename])
-    elif not args.is_multiallelic and not args.is_chrx: #Run analysis on biallelic chromosome
+        time.sleep(1)
+        check_output(["tabix", "-f", vcf_out_filename])
+    
+
+    ## Run analysis on Biallelic Chromosome ##
+    elif not args.is_multiallelic and not args.is_chrx: 
         # loop over each variant in VCF
         for rec in vcf_in.fetch(rChr, rStart, rEnd):
             if len(rec.alts) > 1:

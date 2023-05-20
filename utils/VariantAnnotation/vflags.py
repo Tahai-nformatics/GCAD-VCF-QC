@@ -282,7 +282,7 @@ def calcVA_multiallelic(snp_samples,rec_details,subset):
             if abhet_DP_list[item] == 0:
                 ab_het[item] = '.'
             else:
-                ab_het[item] = "{0:.15f}".format(abhet_AD_list[item] / abhet_DP_list[item])
+                ab_het[item] = "{0:.4f}".format(abhet_AD_list[item] / abhet_DP_list[item])
                 if ab_het[item] == '0.0000':
                     ab_het[item] = '.'
     else:
@@ -383,7 +383,7 @@ def calcVA_chrx(male_snp_samples,female_snp_samples,rec_details,male_subset,fema
             if abhet_DP_list[item] == 0:
                 ab_het[item] = '.'
             else:
-                ab_het[item] = "{0:.15f}".format(abhet_AD_list[item] / abhet_DP_list[item])
+                ab_het[item] = "{0:.4f}".format(abhet_AD_list[item] / abhet_DP_list[item])
                 if ab_het[item] == '0.0000':
                     ab_het[item] = '.'
     else:

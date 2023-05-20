@@ -225,6 +225,7 @@ def count_gt_multiallelic(samples,rec_details):
                                 else:
                                     mi.sa.sa_collection[k].tallySA['failing_obs_homo2'] += 1
 
+                sm['GT'] = (None, None)
                 gt_failed += 1
                 tallyFailedSample(k, sm)
                 depth_sum += sm['DP']
@@ -381,6 +382,7 @@ def count_gt_chrx(male_samples,female_samples,rec_details):
                                     mi.sa.sa_collection[k].tallySA['failing_obs_het'] += 1
                                 else:
                                     mi.sa.sa_collection[k].tallySA['failing_obs_homo2'] += 1
+                sm['GT'] = (None, None)
                 tallyFailedSample(k, sm)
                 gt_failed += 1
                 depth_sum += sm['DP']
@@ -452,6 +454,7 @@ def count_gt_chrx(male_samples,female_samples,rec_details):
                                     mi.sa.sa_collection[k].tallySA['failing_obs_het'] += 1
                                 else:
                                     mi.sa.sa_collection[k].tallySA['failing_obs_homo2'] += 1
+                sm['GT'] = (None, None)
                 tallyFailedSample(k, sm)
                 gt_failed += 1
                 depth_sum += sm['DP']
