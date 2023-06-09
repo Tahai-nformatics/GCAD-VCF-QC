@@ -286,7 +286,7 @@ def write_subset_stats(prefix, subset, rec, vf, abhet, passing, failing, missing
 
     return
 
-def write_subset_stats_chrx(prefix, rec, subset,vf,passing_d_male,passing_d_female,failing_d_male,failing_d_female,missing,gt_failed,clean_d,sum_clean,depth_sum,ab_het,mend_pairs,mend_errors,scores, vtype):
+def write_subset_stats_chrx(prefix, rec, subset,vf,passing_d_male,passing_d_female,failing_d_male,failing_d_female,missing,gt_failed,clean_d,sum_clean,maf,depth_sum,ab_het,mend_pairs,mend_errors,scores, vtype):
 
     """
          passing_d = {GT_type: {GT:count}, GT_type: {GT:count}, GT_type: {GT:count}}
@@ -296,52 +296,9 @@ def write_subset_stats_chrx(prefix, rec, subset,vf,passing_d_male,passing_d_fema
     """
     rec_details = {'filter': rec.filter, 'ref': rec.ref, 'alt': rec.alts,
                  'chr': rec.contig, 'pos': rec.pos}
-
-
     outfile = '{}.{}.tsv'.format(prefix, subset)
     newfile = not os.path.exists(outfile)
     callrate = 1 - (missing + gt_failed) / (missing + gt_failed + sum_clean)
-    N = len(rec_details['alt'])
-    allele_list = [n for n in range(0,N+1)]
-    het_maf_dict = {} # dict of het GT and their allele counts
-    homo_maf_dict = {} # dict of homozygous GT and their allele counts
-    maf_male = copy.deepcopy(clean_d['male']) #maf_male Het GT's will be set to 0, and used in maf calculation
-    maf_female = copy.deepcopy(clean_d['female'])
-    maf = []
-    maf_reference_alleles = sum(list(clean_d['male']['obs_homo1'].values())) + 2*sum(list(clean_d['female']['obs_homo1'].values()))        
-    temp = 2 * (sum(list(clean_d['female']['obs_homo1'].values())) + sum(list(clean_d['female']['obs_homo2'].values())) + sum(list(clean_d['female']['obs_het'].values()))) + sum(list(clean_d['male']['obs_homo1'].values())) + sum(list(clean_d['male']['obs_homo2'].values()))
-
-
-
-
-#For MAF calculation, set Male_Passing_Het to 0
-    
-    for k,v in maf_male['obs_het'].items():
-        maf_male['obs_het'][k] = 0
-
-    if temp >0:
-        for allele in allele_list:
-            het_maf_dict[allele] = 0
-            homo_maf_dict[allele] = 0
-            for key_male,key_female in zip(maf_male['obs_het'],maf_female['obs_het']): # i.e key_male = ((0, 1), (1, 0)) key_male[0] = (0,1)
-                if allele in key_male[0]:
-                    het_maf_dict[allele] += maf_male['obs_het'][key_male]
-                if allele in key_female[0]:
-                    het_maf_dict[allele] += maf_female['obs_het'][key_female]
-            for key_male,key_female in zip(maf_male['obs_homo2'],maf_female['obs_homo2']):
-                if allele in key_male[0]:
-                    homo_maf_dict[allele] += maf_male['obs_homo2'][key_male]
-                if allele in key_female[0]:
-                    homo_maf_dict[allele] += 2*maf_female['obs_homo2'][key_female] #2*maf_female because 2 alleles for female
-                else:
-                    continue
-            if allele == 0:
-                maf.append(float(("{0:.5f}".format((het_maf_dict[allele] + (  maf_reference_alleles)) / temp))))
-            elif allele!=0:
-                maf.append(("{0:.5f}".format((het_maf_dict[allele] + ( homo_maf_dict[allele])) / temp)))
-    else:
-        for allele in allele_list:
-            maf.append(format(0.0, '.5f'))
 
     #MeanDepth
     total_genotypes = sum_clean + gt_failed
@@ -599,6 +556,136 @@ def delete_previous_outputs(out_dir, prefix, subsets):
     return
 
 
+
+def vcf_output_create_biallelic(rec, subset, clean_obs, vf, abhet, vtype, vcf_out):
+    sum_clean = sum(clean_obs)
+    maf = 0
+    alt_maf = 0
+    temp = 2 * sum_clean
+    alt_allele_counts = 2*clean_obs[2] + clean_obs[1]
+
+    if temp > 0:
+        maf = (clean_obs[1] + 2 * clean_obs[2]) / temp
+        alt_maf = maf
+        if maf > 0.5:
+            maf = 1 - maf
+
+        maf = "{0:.6f}".format(maf)
+
+    #Append Allele Number to INFO field
+    rec.info["AN"] = sum_clean
+    
+
+    #Append Allele Counts to INFO field
+    print(rec.info['AC'])
+    rec.info['AC'] = alt_allele_counts
+    #print(rec.info['AC'])
+
+    #Append Allele Frequency to INFO field
+    #rec.info['AF'] = tuple(float(maf[key]) for key in alt_allele_counts.keys())
+    rec.info['AF'] = float(alt_maf)
+
+    #Append VFLAGS to INFO field
+    rec.info[ "VFLAGS_" + subset ] = vf
+    #Append subset ABHet to INFO field
+    rec.info[ "ABHet_" + subset ] = [str(num) for num in abhet]
+
+    #Append VariantType to INFO field 
+    rec.info[ "VariantType" ] = vtype
+
+    #Write to VCF File
+    vcf_out.write(rec)
+
+
+
+
+def vcf_output_create_multiallelic(rec, subset, clean_d, maf, vf, ab_het, vtype, vcf_out):
+    total_sum = sum(sum(Genotype_type.values()) for Genotype_type in clean_d.values()) *2
+    alt_allele_counts = {i: 0 for i in range(1,len(rec.alts)+1)}
+
+    #Loop through Passing dictionary and add allele counts to alt_allele_counts (For AC)
+    for allele in alt_allele_counts:
+        for GT_type in clean_d.keys():
+            for key,values in clean_d[GT_type].items():
+                if any(allele in subkey for subkey in key):
+                    if GT_type == "obs_het":
+                        alt_allele_counts[allele] += clean_d[GT_type][key]
+                    else:
+                        alt_allele_counts[allele] += (clean_d[GT_type][key] *2)
+
+    #Append Allele Number to INFO field
+    rec.info["AN"] = total_sum
+    
+    #Append Allele Counts to INFO field
+    rec.info['AC'] = tuple(alt_allele_counts[key] for key in alt_allele_counts.keys())
+    
+    #Append Allele Frequency to INFO field
+    rec.info['AF'] = tuple(float(maf[key]) for key in alt_allele_counts.keys())
+
+    #Append VFLAGS to INFO field
+    rec.info[ "VFLAGS_" + subset ] = vf
+
+    #Append subset ABHet to INFO field
+    rec.info[ "ABHet_" + subset ] = [str(num) for num in ab_het]
+
+    #Append VariantType to INFO field 
+    rec.info[ "VariantType" ] = vtype
+
+    #Write to VCF File
+    vcf_out.write(rec)
+
+def vcf_output_create_chrX(rec, subset, passing_d, maf, vf, ab_het, vtype, vcf_out, chrx_is_multiallelic):
+    alt_allele_counts = {i: 0 for i in range(1,len(rec.alts)+1)}
+    total_sum_male = 0
+    total_sum_female = 0
+    for sex in passing_d.keys():
+        if sex == 'male':
+            for key, values in passing_d['male'].items():
+                if key == 'obs_homo1' or key == 'obs_homo2':
+                    total_sum_male += sum(values.values())
+        else: #Female
+            for key,values in passing_d['female'].items():
+                total_sum_female += sum(values.values())
+    total_sum = (total_sum_female *2) + ( total_sum_male )
+
+    #Loop through Passing dictionary and add allele counts to alt_allele_counts (For AC)
+    for allele in alt_allele_counts:
+        for sex in passing_d.keys():
+            for GT_type in passing_d[sex].keys():
+                if sex == 'male' and GT_type != 'obs_homo2': 
+                    continue
+                for key,values in passing_d[sex][GT_type].items():
+                    if any(allele in subkey for subkey in key):
+                        if GT_type == "obs_het":
+                            alt_allele_counts[allele] += (passing_d['female'][GT_type][key])
+                        elif sex == "male": #Can only be obs_homo2
+                            alt_allele_counts[allele] += (passing_d['male'][GT_type][key])
+                        else: #Female obs_homo2
+                            alt_allele_counts[allele] += (passing_d['female'][GT_type][key] *2)
+    
+    #Append Allele Number to INFO field
+    rec.info["AN"] = total_sum
+    
+    #Append Allele Counts to INFO field
+    rec.info['AC'] = tuple(alt_allele_counts[key] for key in alt_allele_counts.keys())
+    
+    #Append Allele Frequency to INFO field
+    rec.info['AF'] = tuple(float(maf[key]) for key in alt_allele_counts.keys())
+    
+    #Append VFLAGS to INFO field
+    rec.info[ "VFLAGS_" + subset ] = vf
+
+    #Append subset ABHet to INFO field
+    #abhet_vcf = [str(item) for item in ab_het]
+    rec.info[ "ABHet_" + subset ] = [str(num) for num in ab_het]
+
+    #Append VariantType to INFO field
+    rec.info[ "VariantType" ] = vtype
+
+    #Write to VCF File
+    vcf_out.write(rec)
+
+
 def main():
     argparser = ArgumentParser()
     grp_file_paths = argparser.add_argument_group(title='File paths')
@@ -828,24 +915,13 @@ def main():
                     
                     #Companion file
                     write_subset_stats_multiallelic(prefix_companions, rec, subset, maf ,vf,passing_d,failing_d,missing,gt_failed,clean_passing_d,sum_clean,depth_sum,ab_het,mend_pairs,mend_errors,scores,vtype)
-                
-
-                    #Append VFLAGS to INFO field
-                    rec.info[ "VFLAGS_" + subset ] = vf
-
-                    #Append subset ABHet to INFO field
-
-                    #abhet_vcf = [str(item) for item in ab_het]
-                    rec.info[ "ABHet_" + subset ] = [str(num) for num in ab_het]
-
-                    #Append VariantType to INFO field
-                    rec.info[ "VariantType" ] = vtype
-
+                    
 
                 find_s_d_multiallelic(clean_passing_d,rec.samples)
            
                 if args.no_output_vcf == False:
-                    vcf_out.write(rec)
+                    #Append to INFO field headers and write to VCF file
+                    vcf_output_create_multiallelic(rec, subset, clean_passing_d, maf, vf, ab_het, vtype, vcf_out)
 
                 ct += 1
             
@@ -923,8 +999,7 @@ def main():
                      'chr': rec.contig, 'pos': rec.pos}
                 
                 #Calculate stats
-                [vf,passing_d_male,passing_d_female,failing_d_male,failing_d_female,missing,gt_failed,clean_d,sum_clean,depth_sum,ab_het,subg_male,subg_female,subg_c_male,subg_c_female,zhet_dict,zhet_sample_counts] = calcVA_chrx(sm_list_male['dict'],sm_list_female['dict'],rec_details,subset_male,subset_female)
-                
+                [vf,passing_d_male,passing_d_female,failing_d_male,failing_d_female,missing,gt_failed,clean_d,sum_clean,maf,depth_sum, ab_het,subg_male,subg_female,subg_c_male,subg_c_female,zhet_dict,zhet_sample_counts] = calcVA_chrx(sm_list_male['dict'],sm_list_female['dict'],rec_details,subset_male,subset_female)
                 #MI 
                 mend_pairs, mend_errors = check_mendelian_errors_chrx(prefix_mi, rec)
                 
@@ -932,23 +1007,14 @@ def main():
                 scores = calculate_subgroup_scores_chrx(rec.alts,subset_male, subg_male,subg_female, subg_c_male,subg_c_female,zhet_dict,zhet_sample_counts)
                 
                 #Companion file
-                write_subset_stats_chrx(prefix_companions, rec, subset_male,vf,passing_d_male,passing_d_female,failing_d_male,failing_d_female,missing,gt_failed,clean_d,sum_clean,depth_sum,ab_het,mend_pairs, mend_errors, scores, vtype) 
-                
-                
-                # Append subset VFLAGS to INFO field
-                rec.info[ "VFLAGS_" + subset_female ] = vf
-
-                #Append subset ABHet to INFO field
-                rec.info[ "ABHet_" + subset_female ] = [str(num) for num in ab_het]
-
-                #Append VariantType to INFO field
-                rec.info[ "VariantType" ] = vtype
-
+                write_subset_stats_chrx(prefix_companions, rec, subset_male,vf,passing_d_male,passing_d_female,failing_d_male,failing_d_female,missing,gt_failed,clean_d,sum_clean,maf,depth_sum,ab_het,mend_pairs, mend_errors, scores, vtype) 
 
             find_s_d_chrx(clean_d, rec.samples)
-            
+
             if args.no_output_vcf == False:
-                vcf_out.write(rec)
+                #Append to INFO field headers and write to VCF file
+                vcf_output_create_chrX(rec, subset_female, clean_d, maf, vf, ab_het, vtype, vcf_out, chrx_is_multiallelic)
+                #vcf_out.write(rec)
 
             ct += 1
 
@@ -964,10 +1030,11 @@ def main():
         
         write_indiv_summary_chrx(prefix_indiv, isWES, chrx_is_multiallelic)
     
-    if args.no_output_vcf == False:
+        if args.no_output_vcf == False:
         # create index
-        time.sleep(1)
-        check_output(["tabix", "-f", vcf_out_filename])
+            time.sleep(1)
+            print('here')
+            check_output(["tabix", "-f", vcf_out_filename])
     
 
     ## Run analysis on Biallelic Chromosome ##
@@ -1016,12 +1083,22 @@ def main():
                                    mend_pairs, mend_errors, scores, vtype,
                                    isWES, have_target
                                   )
+      
+
+                #vcf_output_create_biallelic(rec, subset, clean_obs, vf, abhet, vtype, vcf_out)
+                
+                #Append Allele Number to INFO field
+                rec.info["AN"] =  2 * sum(clean_obs)
+                
+                #Append Allele Counts to INFO field
+                rec.info['AC'] = 2*clean_obs[2] + clean_obs[1]
+                
+                #Append Allele Frequency to INFO field
+                rec.info['AF'] = float((clean_obs[1] + (2 * clean_obs[2]))/ (2 * sum(clean_obs)))
 
                 # Append subset VFLAGS to INFO field
-     #           rec.info[ "VFLAGS_" + subset ] = ",".join(map(str,vf))
                 rec.info[ "VFLAGS_" + subset ] = vf
 
-    #            print(abhet)
                 # Append subset ABHet to INFO field
                 rec.info[ "ABHet_" + subset ] = float(abhet) if abhet != 'NA' else None
 
@@ -1061,10 +1138,10 @@ def main():
             print("rate:{0:.1f}".format(ct/(end - start_p)))
         write_indiv_summary(prefix_indiv, isWES)
 
-    if args.no_output_vcf == False:
-        # create index
-        time.sleep(1)
-        check_output(["tabix", "-f", vcf_out_filename])
+        if args.no_output_vcf == False:
+            # create index
+            time.sleep(1)
+            check_output(["tabix", "-f", vcf_out_filename])
 
 def calculate_subgroup_scores_multiallelic(subset, subg, subg_cntl,allele_count_dict,zhet_sample_counts):
     """ calculate_subgroup_scores - generates nClean, Zhet, and pHWE for subgroups
