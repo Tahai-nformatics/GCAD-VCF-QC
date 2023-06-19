@@ -1033,7 +1033,6 @@ def main():
         if args.no_output_vcf == False:
         # create index
             time.sleep(1)
-            print('here')
             check_output(["tabix", "-f", vcf_out_filename])
     
 
@@ -1094,8 +1093,7 @@ def main():
                 rec.info['AC'] = 2*clean_obs[2] + clean_obs[1]
                 
                 #Append Allele Frequency to INFO field
-                rec.info['AF'] = float((clean_obs[1] + (2 * clean_obs[2]))/ (2 * sum(clean_obs)))
-
+                rec.info['AF'] = float((clean_obs[1] + (2 * clean_obs[2]))/ (2 * sum(clean_obs))) if sum(clean_obs) > 0 else 0
                 # Append subset VFLAGS to INFO field
                 rec.info[ "VFLAGS_" + subset ] = vf
 
