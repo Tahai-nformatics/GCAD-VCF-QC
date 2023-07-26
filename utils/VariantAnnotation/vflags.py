@@ -341,9 +341,7 @@ def calcVA_chrx(male_snp_samples,female_snp_samples,rec_details,male_subset,fema
     maf = []
     maf_reference_alleles = sum(list(clean_d['male']['obs_homo1'].values())) + 2*sum(list(clean_d['female']['obs_homo1'].values()))        
     temp = 2 * (sum(list(clean_d['female']['obs_homo1'].values())) + sum(list(clean_d['female']['obs_homo2'].values())) + sum(list(clean_d['female']['obs_het'].values()))) + sum(list(clean_d['male']['obs_homo1'].values())) + sum(list(clean_d['male']['obs_homo2'].values()))
-
     sum_clean = 0
-    total = missing + gt_failed + sum_clean
 
 #Add All Non-Male_Het GT's to sum_Clean
     for key1,key2 in zip(clean_d['male'].keys(),clean_d['female'].keys()): #obs_hom1, obs_het, obs_hom2
@@ -353,7 +351,8 @@ def calcVA_chrx(male_snp_samples,female_snp_samples,rec_details,male_subset,fema
         else: #Add female Het GT's
             for value in clean_d['female'][key1].values(): #Genotypes
                 sum_clean += value
-
+    
+    total = missing + gt_failed + sum_clean
 #For MAF calculation, set Male_Passing_Het to 0
     for k,v in maf_male['obs_het'].items():
         maf_male['obs_het'][k] = 0
