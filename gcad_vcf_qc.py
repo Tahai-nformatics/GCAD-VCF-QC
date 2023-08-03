@@ -863,7 +863,7 @@ def main():
 
     delete_previous_outputs(args.out_dir, 'summary.snv' + regionStr, list(samplesDict.keys()))
 
-    ct = 0
+    variant_ct = 0
     start_p = time.time()
     
     ## Run analysis on Multiallelic chromosome ##
@@ -923,7 +923,7 @@ def main():
                     #Append to INFO field headers and write to VCF file
                     vcf_output_create_multiallelic(rec, subset, clean_passing_d, maf, vf, ab_het, vtype, vcf_out)
 
-                ct += 1
+                variant_ct += 1
             
             if args.no_output_vcf == False:
                 vcf_out.close()
@@ -931,9 +931,9 @@ def main():
             end = time.time()
             print("total_time:{0:.2f}".format(end - start))
             print("process_time:{0:.2f}".format(end - start_p))
-            print("total_processed:{}".format(ct))
-            if ct > 0:
-                print("rate:{0:.1f}".format(ct/(end - start_p)))
+            print("total_processed:{}".format(variant_ct))
+            if variant_ct > 0:
+                print("rate:{0:.2f}".format(variant_ct/(end - start_p)))
             write_indiv_summary_multiallelic(prefix_indiv, isWES)
 
         if args.no_output_vcf == False:
@@ -1016,7 +1016,7 @@ def main():
                 vcf_output_create_chrX(rec, subset_female, clean_d, maf, vf, ab_het, vtype, vcf_out, chrx_is_multiallelic)
                 #vcf_out.write(rec)
 
-            ct += 1
+            variant_ct += 1
 
         if args.no_output_vcf == False:
             vcf_out.close()
@@ -1024,15 +1024,16 @@ def main():
         end = time.time()
         print("total_time:{0:.2f}".format(end - start))
         print("process_time:{0:.2f}".format(end - start_p))
-        print("total_processed:{}".format(ct))
-        if ct > 0:
-            print("rate:{0:.1f}".format(ct/(end - start_p)))
+        print("total_processed:{}".format(variant_ct))
+        if variant_ct > 0:
+            print("rate:{0:.2f}".format(variant_ct/(end - start_p)))
         
         write_indiv_summary_chrx(prefix_indiv, isWES, chrx_is_multiallelic)
     
         if args.no_output_vcf == False:
         # create index
             time.sleep(1)
+            print('here')
             check_output(["tabix", "-f", vcf_out_filename])
     
 
@@ -1093,7 +1094,8 @@ def main():
                 rec.info['AC'] = 2*clean_obs[2] + clean_obs[1]
                 
                 #Append Allele Frequency to INFO field
-                rec.info['AF'] = float((clean_obs[1] + (2 * clean_obs[2]))/ (2 * sum(clean_obs))) if sum(clean_obs) > 0 else 0
+                rec.info['AF'] = float((clean_obs[1] + (2 * clean_obs[2]))/ (2 * sum(clean_obs)))
+
                 # Append subset VFLAGS to INFO field
                 rec.info[ "VFLAGS_" + subset ] = vf
 
@@ -1124,16 +1126,16 @@ def main():
                 vcf_out.write(rec)
 
             #print()
-            ct += 1
+            variant_ct += 1
 
         if args.no_output_vcf == False: vcf_out.close()
 
         end = time.time()
         print("total_time:{0:.2f}".format(end - start))
         print("process_time:{0:.2f}".format(end - start_p))
-        print("total_processed:{}".format(ct))
-        if ct > 0:
-            print("rate:{0:.1f}".format(ct/(end - start_p)))
+        print("total_processed:{}".format(variant_ct))
+        if variant_ct > 0:
+            print("rate:{0:.2f}".format(variant_ct/(end - start_p)))
         write_indiv_summary(prefix_indiv, isWES)
 
         if args.no_output_vcf == False:
