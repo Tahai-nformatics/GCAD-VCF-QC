@@ -3,6 +3,7 @@
 import config as cfg
 import utils.SampleAnnotation.sample_annotation as mi
 from collections import OrderedDict
+from itertools import product
 import copy
 
 def count_gt(samples, rec_details, in_region):
@@ -154,54 +155,35 @@ def count_gt_multiallelic(samples,rec_details):
     """
     N = len(rec_details['alt'])
     allele_list = [n for n in range(0,N+1)]
-    #allele_list = [0, 1, 2, 3]
     missing = 0
     depth_sum = 0
     gt_failed = 0
+    het_dp = 0
     zhet_sample_counts = OrderedDict({key:[0,0] for key in mi.sa.subgroups}) # Counts for Het and Homozygous_alts
     abhet_AD_list = [0 for i in allele_list]
-    abhet_DP_list = copy.deepcopy(abhet_AD_list)
-    #subgroup_counts = OrderedDict({key:[0,0,0] for key in mi.sa.subgroups})
-    #subgroup_counts_cntrls = copy.deepcopy(subgroup_counts)
     subgroup_counts = OrderedDict({key:{'obs_homo1':{},'obs_het':{},'obs_homo2':{}} for key in mi.sa.subgroups})
-    subgroup_counts_cntrls = OrderedDict({key:{'obs_homo1':{},'obs_het':{},'obs_homo2':{}} for key in mi.sa.subgroups})
-
+    subgroup_counts_cntrls = copy.deepcopy(subgroup_counts)
     mi.sa.clear_mpairs()
-    passing_d = {'obs_homo1':{},'obs_het':{},'obs_homo2':{}}
-    failing_d = {'obs_homo1':{},'obs_het':{},'obs_homo2':{}}
     clean_passing_d = {'obs_homo1':{},'obs_het':{},'obs_homo2':{}}
     allele_count_dict = OrderedDict({key:[0 for n in range(0,N+1)] for key in mi.sa.subgroups})
 
-    for i in allele_list:    #Create Passing and Failing Dictionary with keys being all possible Genotypes
+    passing_d = {'obs_homo1': {((i, b), (b, i)): 0 for i in allele_list for b in allele_list[i:] if (i, b) == (0, 0) and (b, i) == (0, 0)},
+                            'obs_het': {((i, b), (b, i)): 0 for i in allele_list for b in allele_list[i:] if (i, b) != (b, i)},
+                            'obs_homo2': {((i, b), (b, i)): 0 for i in allele_list for b in allele_list[i:] if (i, b) == (b, i) and i != 0}}
+    failing_d = copy.deepcopy(passing_d)
+    
+
+    for i in allele_list:    #Create Passing and Failing Dictionary with keys being all possible Genotypes. Pipeline coded to recognize both orientations of GT's example: (0,1) and (1,0) GT's
             for b in allele_list[i:]:
                 for subgroup in mi.sa.subgroups:
-                    if (i,b) == (0,0) and (b,i) == (0,0):
-                        subgroup_counts[subgroup]['obs_homo1'][(i,b),(b,i)] = 0
-                        subgroup_counts_cntrls[subgroup]['obs_homo1'][(i,b),(b,i)] = 0
-                    elif (i,b) != (b,i):
-                        subgroup_counts[subgroup]['obs_het'][(i,b),(b,i)] = 0
-                        subgroup_counts_cntrls[subgroup]['obs_het'][(i,b),(b,i)] = 0
-                    elif (i,b) != (b,i):
-                        subgroup_counts[subgroup]['obs_het'][(i,b),(b,i)] = 0
-                        subgroup_counts_cntrls[subgroup]['obs_het'][(i,b),(b,i)] = 0
-                    elif (i,b) == (b,i):
-                        subgroup_counts[subgroup]['obs_homo2'][(i,b),(b,i)] = 0
-                        subgroup_counts_cntrls[subgroup]['obs_homo2'][(i,b),(b,i)] = 0
-
-                if (i,b) == (0,0) and (b,i) == (0,0):
-                    passing_d['obs_homo1'][(i,b),(b,i)] = 0
-                    failing_d['obs_homo1'][(i,b),(b,i)] = 0
-                elif (i,b) != (b,i):
-                    passing_d['obs_het'][(i,b),(b,i)] = 0
-                    failing_d['obs_het'][(i,b),(b,i)] = 0
-                elif (i,b) == (b,i):
-                    passing_d['obs_homo2'][(i,b),(b,i)] = 0
-                    failing_d['obs_homo2'][(i,b),(b,i)] = 0
-
-    #Example of passing_d:{classification:{GT:count}}: {'obs_homo1': {((0, 0), (0, 0)): 0}, 'obs_het': {((0, 1), (1, 0)): 0, ((0, 2), (2, 0)): 0, ((0, 3), (3, 0)): 0, ((1, 2), (2, 1)): 0, (1)): 0, ((2, 3), (3, 2)): 0}, 
+                    gt_category = ('obs_homo1' if (i, b) == (0, 0) and (b, i) == (0, 0) 
+                    else 'obs_het' if (i, b) != (b, i) 
+                    else 'obs_homo2')
+                    
+                    subgroup_counts[subgroup][gt_category][(i, b), (b, i)] = 0
+                    subgroup_counts_cntrls[subgroup][gt_category][(i, b), (b, i)] = 0
+    #Example of passing_d:{gt_category:{GT:count}}: {'obs_homo1': {((0, 0), (0, 0)): 0}, 'obs_het': {((0, 1), (1, 0)): 0, ((0, 2), (2, 0)): 0, ((0, 3), (3, 0)): 0, ((1, 2), (2, 1)): 0, (1)): 0, ((2, 3), (3, 2)): 0}, 
 #'obs_homo2': {((1, 1), (1, 1)): 0, ((2, 2), (2, 2)): 0, ((3, 3), (3, 3)): 0}}    
-    #hetty_dict = copy.deepcopy(passing_d)
-    
     for k,sm in samples.items():
         subgroup = mi.sa.sa_collection[k].get_subgroup()
         if (None in sm['GT']):
@@ -212,19 +194,17 @@ def count_gt_multiallelic(samples,rec_details):
             continue
         try:
             if (sm['DP'] < cfg.MINDP or sm['GQ'] < cfg.MINGQ):
-                #print('its lower')
-                for classification in failing_d.keys():
-                    for key, values in failing_d[classification].items():
-                        if sm['GT'] in key:
-                            failing_d[classification][key] += 1
-                            if classification == "obs_homo1":
-                                mi.sa.sa_collection[k].tallySA['failing_'+ classification] += 1    # Add Failing samples to SA
-                            else:
-                                if 0 in sm['GT']:
-                                    mi.sa.sa_collection[k].tallySA['failing_obs_het'] += 1
-                                else:
-                                    mi.sa.sa_collection[k].tallySA['failing_obs_homo2'] += 1
-
+                if sm['GT'] == (0,0):
+                    failing_d['obs_homo1'][((0, 0), (0, 0))]  += 1
+                    mi.sa.sa_collection[k].tallySA['failing_obs_homo1'] += 1    # Add Failing samples to SA
+                else:
+                    if sm['GT'][0] == sm['GT'][1]: # Failing homozygous ALT
+                        failing_d['obs_homo2'][(sm['GT'], (sm['GT'][1],sm['GT'][0]))] +=1
+                        mi.sa.sa_collection[k].tallySA['failing_obs_homo2'] += 1
+                    if sm['GT'][0] != sm['GT'][1]:
+                        failing_d['obs_het'][(sm['GT'], (sm['GT'][1],sm['GT'][0]))] +=1
+                        mi.sa.sa_collection[k].tallySA['failing_obs_het'] += 1
+                
                 sm['GT'] = (None, None)
                 gt_failed += 1
                 tallyFailedSample(k, sm)
@@ -253,42 +233,38 @@ def count_gt_multiallelic(samples,rec_details):
                 if mi.sa.sa_collection[k].is_control():
                     allele_count_dict[subgroup][0] +=2
             else: #Homozygous ALT
-                for key in passing_d['obs_homo2']:
-                    if sm['GT'] in key:
-                        passing_d['obs_homo2'][key] +=1
-                        allele_count_dict[subgroup][sm['GT'][1]] +=2
-                        zhet_sample_counts[subgroup][1] += 1
-                        subgroup_counts, subgroup_counts_cntrls = increment_subgroup_multiallelic(k, 'obs_homo2', key, subgroup_counts, subgroup_counts_cntrls)
-                        mi.sa.sa_collection[k].tallySA['passing_obs_homo2'] += 1
-                        if mi.sa.sa_collection[k].is_control():
-                            zhet_sample_counts[subgroup][1] += 1
-                            allele_count_dict[subgroup][sm['GT'][1]] +=2
+                passing_d['obs_homo2'][(sm['GT'], (sm['GT'][1],sm['GT'][0]))] +=1
+                allele_count_dict[subgroup][sm['GT'][1]] +=2
+                zhet_sample_counts[subgroup][1] += 1
+                subgroup_counts, subgroup_counts_cntrls = increment_subgroup_multiallelic(k, 'obs_homo2', (sm['GT'], (sm['GT'][1],sm['GT'][0])), subgroup_counts, subgroup_counts_cntrls)
+                mi.sa.sa_collection[k].tallySA['passing_obs_homo2'] += 1
+                if mi.sa.sa_collection[k].is_control():
+                    zhet_sample_counts[subgroup][1] += 1
+                    allele_count_dict[subgroup][sm['GT'][1]] +=2
         else: #Heterozygous sample
-            for key in passing_d['obs_het']:
-                if sm['GT'] in key:
-                    passing_d['obs_het'][key] +=1
-                    zhet_sample_counts[subgroup][0] += 1
-                    allele_count_dict[subgroup][sm['GT'][0]] +=1
-                    allele_count_dict[subgroup][sm['GT'][1]] +=1
-                    subgroup_counts, subgroup_counts_cntrls = increment_subgroup_multiallelic(k, 'obs_het', key, subgroup_counts, subgroup_counts_cntrls)
-                    if 0 in sm['GT']: # Treat Alternate alleles in a Het sample differently for Zhet calculations
-                        mi.sa.sa_collection[k].tallySA['passing_obs_het'] += 1
-                    else:
-                        mi.sa.sa_collection[k].tallySA['passing_obs_homo2'] += 1
-                    if mi.sa.sa_collection[k].is_control():
-                        zhet_sample_counts[subgroup][0] += 1
-                        allele_count_dict[subgroup][sm['GT'][0]] +=1
-                        allele_count_dict[subgroup][sm['GT'][1]] +=1
-                    for allele in sm['GT']:   # For ABHET Calculations: each allele in abhet_AD_list/abhet_DP_list 
-                        abhet_AD_list[allele] += sm['AD'][allele]
-                    abhet_DP_list[sm['GT'][0]] += ( sm['AD'][sm['GT'][0]] + sm['AD'][sm['GT'][1]] )
-                    abhet_DP_list[sm['GT'][1]] += ( sm['AD'][sm['GT'][1]] + sm['AD'][sm['GT'][0]] )
+            passing_d['obs_het'][(sm['GT'], (sm['GT'][1],sm['GT'][0]))] +=1
+            het_dp += sm['DP']
+            zhet_sample_counts[subgroup][0] += 1
+            allele_count_dict[subgroup][sm['GT'][0]] +=1
+            allele_count_dict[subgroup][sm['GT'][1]] +=1
+            subgroup_counts, subgroup_counts_cntrls = increment_subgroup_multiallelic(k, 'obs_het', (sm['GT'], (sm['GT'][1],sm['GT'][0])), subgroup_counts, subgroup_counts_cntrls)
+            if 0 in sm['GT']: # Treat Alternate alleles in a Het sample differently for Zhet calculations
+                mi.sa.sa_collection[k].tallySA['passing_obs_het'] += 1
+            else:
+                mi.sa.sa_collection[k].tallySA['passing_obs_homo2'] += 1
+            if mi.sa.sa_collection[k].is_control():
+                zhet_sample_counts[subgroup][0] += 1
+                allele_count_dict[subgroup][sm['GT'][0]] +=1
+                allele_count_dict[subgroup][sm['GT'][1]] +=1
+        
+            for allele in sm['GT']:
+                abhet_AD_list[allele] += sm['AD'][allele]
+
 
         tallyPassingSample(k,sm)
         
-    clean_passing_d = copy.deepcopy(passing_d) 
-    
-    return [passing_d,failing_d,missing,gt_failed,clean_passing_d,depth_sum,abhet_AD_list,abhet_DP_list,subgroup_counts, subgroup_counts_cntrls,allele_count_dict,zhet_sample_counts]
+    clean_passing_d = copy.deepcopy(passing_d)
+    return [passing_d,failing_d,missing,gt_failed,clean_passing_d,depth_sum,abhet_AD_list,het_dp,subgroup_counts, subgroup_counts_cntrls,allele_count_dict,zhet_sample_counts]
 
 def count_gt_chrx(male_samples,female_samples,rec_details):
     N = len(rec_details['alt'])
@@ -404,6 +380,7 @@ def count_gt_chrx(male_samples,female_samples,rec_details):
                         #subgroup_counts_male, subgroup_counts_cntrls_male = increment_subgroup(k, 0, subgroup_counts_male, subgroup_counts_cntrls_male)
 
                     elif classification == 'obs_het':
+                        gt_failed +=1
                         mi.sa.sa_collection[k].tallySA['passing_'+ classification] += 1
                         if 0 in sm['GT']:
                             mi.sa.sa_collection[k].tallySA['failing_obs_het'] += 1
@@ -472,8 +449,7 @@ def count_gt_chrx(male_samples,female_samples,rec_details):
                         mi.sa.sa_collection[k].tallySA['passing_'+ classification] += 1
                         zhet_dict[subgroup][0] +=2
                         if mi.sa.sa_collection[k].is_control():
-                            pass
-                            #removedzhet_dict[subgroup][0] +=2
+                            zhet_dict[subgroup][0] +=2
                         subgroup_counts_female, subgroup_counts_cntrls_female = increment_subgroup_multiallelic(k, classification, key, subgroup_counts_female, subgroup_counts_cntrls_female)
 
                         #subgroup_counts_female, subgroup_counts_cntrls_female = increment_subgroup(k, 0, subgroup_counts_female, subgroup_counts_cntrls_female)
@@ -488,10 +464,9 @@ def count_gt_chrx(male_samples,female_samples,rec_details):
                             mi.sa.sa_collection[k].tallySA['passing_obs_homo2'] += 1
 
                         if mi.sa.sa_collection[k].is_control():
-                            pass
-                            #removedzhet_sample_counts[subgroup][0] += 1
-                            #zhet_dict[subgroup][sm['GT'][0]] +=1
-                            #zhet_dict[subgroup][sm['GT'][1]] +=1
+                            zhet_sample_counts[subgroup][0] += 1
+                            zhet_dict[subgroup][sm['GT'][0]] +=1
+                            zhet_dict[subgroup][sm['GT'][1]] +=1
 
                         subgroup_counts_female, subgroup_counts_cntrls_female = increment_subgroup_multiallelic(k, classification, key, subgroup_counts_female, subgroup_counts_cntrls_female)
                             #subgroup_counts_female, subgroup_counts_cntrls_female = increment_subgroup(k, 1, subgroup_counts_female, subgroup_counts_cntrls_female)
@@ -504,8 +479,8 @@ def count_gt_chrx(male_samples,female_samples,rec_details):
 
                         #subgroup_counts_female, subgroup_counts_cntrls_female = increment_subgroup(k, 2, subgroup_counts_female, subgroup_counts_cntrls_female)
                         if mi.sa.sa_collection[k].is_control():
-                            #zhet_sample_counts[subgroup][1] += 1
-                            #zhet_dict[subgroup][sm['GT'][1]] +=2
+                            zhet_sample_counts[subgroup][1] += 1
+                            zhet_dict[subgroup][sm['GT'][1]] +=2
                             pass
                     else:
                         raise TypeError("Weird GT")
@@ -525,9 +500,6 @@ def count_gt_chrx(male_samples,female_samples,rec_details):
 
 
     clean_d['male'],clean_d['female'] = copy.deepcopy(passing_d_male), copy.deepcopy(passing_d_female)
-    for k,v in passing_d_male['obs_het'].items():
-        failing_d_male['obs_het'][k] += passing_d_male['obs_het'][k]
-        gt_failed += passing_d_male['obs_het'][k]
 
     return [passing_d_male,failing_d_male,passing_d_female,failing_d_female,missing,gt_failed,clean_d,depth_sum,abhet_AD_list,abhet_DP_list,subgroup_counts_male,subgroup_counts_female, subgroup_counts_cntrls_male,subgroup_counts_cntrls_female,zhet_dict,zhet_sample_counts]
 

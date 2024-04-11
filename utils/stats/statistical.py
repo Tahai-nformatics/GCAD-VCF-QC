@@ -36,7 +36,6 @@ def calc_ExcessHet(aa, ab, bb):
     q=1-p
     """
     N = aa+ab+bb
-
     result = '.'
     maf = 0
     if N:

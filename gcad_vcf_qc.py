@@ -151,13 +151,14 @@ def write_subset_stats_multiallelic(prefix, rec, subset,maf, vf, passing_d,faili
 
     with open(outfile, 'a') as csvfile:
         fieldnames = ['CHR','POS',
-                      'PASS_Homoz_Ref','PASS_Het', "PASS_Homoz_Alt",
-                      'FAIL_Homoz_Ref', 'FAIL_Het', 'FAIL_Homoz_Alt',
-                      'MISSING', 'GT_FAILED',
-                      'CLEAN_Homoz_Ref', 'CLEAN_Het','CLEAN_Homoz_Alt',
-                      'MONO','CALLRATE','CALLBAD','GATKPass',
-                      'Mendelian_Inconsistency','Mend_pairs','propMI','AF','MEAN_DEPTH', 'HI_DEPTH', 'ABHET',
-                      'VFLAGS', 'rsID', 'RefAllele', 'AltAlleles',
+                      'Pass00','Pass01', "Pass11",
+                      'Fail00', 'Fail01', 'Fail11',
+                      'Missing', 'GT_Failed',
+                      'Clean00', 'Clean01','Clean11',
+                      'Mono','CallRate','CallBad','GATKPass',
+                      'AF', 'MeanDepth', 'HiDepth', 'ABHet',
+                      'Mend_Incon','Mend_pairs','propMI','AF',
+                      'VFLAGS', 'rsID', 'RefAllele', 'AltAllele',
                       'QUAL','FILTER','VTYPE',
                      ]
         fieldnames.extend(scores.keys())
@@ -168,28 +169,29 @@ def write_subset_stats_multiallelic(prefix, rec, subset,maf, vf, passing_d,faili
         qual = "{0:.2f}".format(rec.qual) if rec.qual is not None else 'NA'
         row = {'CHR': rec.contig,
                'POS': rec.pos,
-            'PASS_Homoz_Ref':list(passing_d['obs_homo1'].values())[0],
-            "PASS_Het":",".join(str(x) for x in passing_d['obs_het'].values()),
-            "PASS_Homoz_Alt":",".join(str(x) for x in passing_d['obs_homo2'].values()),
-            'FAIL_Homoz_Ref':",".join(str(x) for x in failing_d['obs_homo1'].values()),
-            'FAIL_Het':",".join(str(x) for x in failing_d['obs_het'].values()),
-            'FAIL_Homoz_Alt':",".join(str(x) for x in failing_d['obs_homo2'].values()),
-            'MISSING': missing,
-            'GT_FAILED':gt_failed,
-            'CLEAN_Homoz_Ref': list(clean_passing_d['obs_homo1'].values())[0],
-            'CLEAN_Het':",".join(str(x) for x in clean_passing_d['obs_het'].values()),
-            'CLEAN_Homoz_Alt': ",".join(str(x) for x in clean_passing_d['obs_homo2'].values()),
-            'MONO': int(3 in vf),
-            'CALLRATE':"{0:.5f}".format(callrate), 'CALLBAD':int(callrate < (1 - cfg.miss_rate)),
+            'Pass00':list(passing_d['obs_homo1'].values())[0],
+            "Pass01":",".join(str(x) for x in passing_d['obs_het'].values()),
+            "Pass11":",".join(str(x) for x in passing_d['obs_homo2'].values()),
+            'Fail00':",".join(str(x) for x in failing_d['obs_homo1'].values()),
+            'Fail01':",".join(str(x) for x in failing_d['obs_het'].values()),
+            'Fail11':",".join(str(x) for x in failing_d['obs_homo2'].values()),
+            'Missing': missing,
+            'GT_Failed':gt_failed,
+            'Clean00': list(clean_passing_d['obs_homo1'].values())[0],
+            'Clean01':",".join(str(x) for x in clean_passing_d['obs_het'].values()),
+            'Clean11': ",".join(str(x) for x in clean_passing_d['obs_homo2'].values()),
+            'Mono': int(3 in vf),
+            'CallRate':"{0:.6f}".format(callrate), 'CallBad':int(callrate < (1 - cfg.miss_rate)),
             'GATKPass': int(1 not in vf),
-            'Mendelian_Inconsistency':mend_errors, 'Mend_pairs':mend_pairs,'propMI': "{0:.6f}".format(mend_errors / mend_pairs if mend_pairs >0 else -1),
             'AF': ",".join(str(x) for x in maf),
-            'MEAN_DEPTH':"{0:.5f}".format(mean_depth), 'HI_DEPTH':int(mean_depth > cfg.max_dp),
-            'ABHET':",".join(str(x) for x in ab_het),
+            'MeanDepth':"{0:.6f}".format(mean_depth), 'HiDepth':int(mean_depth > cfg.max_dp),
+            'ABHet':",".join(str(x) for x in ab_het),
+            'Mend_Incon':mend_errors, 'Mend_pairs':mend_pairs,'propMI': "{0:.6f}".format(mend_errors / mend_pairs if mend_pairs >0 else -1),
+            'AF': ",".join(str(x) for x in maf),
             'VFLAGS': ",".join(str(x) for x in vf),
             'rsID': rec.id if rec.id else '.',
             'RefAllele': rec.ref,
-            'AltAlleles': ",".join(rec.alts),
+            'AltAllele': ",".join(rec.alts),
             'QUAL':qual,
             'FILTER':",".join(rec.filter.keys()),
             'VTYPE': VTYPE,
@@ -305,54 +307,50 @@ def write_subset_stats_chrx(prefix, rec, subset,vf,passing_d_male,passing_d_fema
     mean_depth = depth_sum / total_genotypes if total_genotypes else 0
     with open(outfile, 'a') as csvfile:
         fieldnames = ['CHR','POS',
-                      'PASS_Homoz_Ref','PASS_Het', "PASS_Homoz_Alt",
-                      'FAIL_Homoz_Ref', 'FAIL_Het', 'FAIL_Homoz_Alt',
-                      'MISSING', 'GT_FAILED',
-                      'CLEAN_Homoz_Ref', 'CLEAN_Het','CLEAN_Homoz_Alt',
-                      'MONO','CALLRATE','CALLBAD','GATKPass',
-                      'AF','MEAN_DEPTH', 'HI_DEPTH', 'ABHET',
-                      'Mendelian_Inconsistency','Mend_pairs','propMI',
-                      'VFLAGS', 'rsID', 'RefAllele', 'AltAlleles',
+                      'Pass00','Pass01', "Pass11",
+                      'Fail00', 'Fail01', 'Fail11',
+                      'Missing', 'GT_Failed',
+                      'Clean00', 'Clean01','Clean11',
+                      'Mono','CallRate','CallBad','GATKPass',
+                      'AF','MeanDepth', 'HiDepth', 'ABHet',
+                      'Mend_Incon','Mend_pairs','propMI',
+                      'VFLAGS', 'rsID', 'RefAllele', 'AltAllele',
                       'QUAL','FILTER','VTYPE','MaleHet',
                      ]
         fieldnames.extend(scores.keys())
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames , delimiter='\t', lineterminator='\n')
-
-        Pass_Het = ",".join(str(x) for x in passing_d_male['obs_het'].values())
-
 
         if newfile:
             writer.writeheader()
         qual = "{0:.2f}".format(rec.qual) if rec.qual is not None else 'NA'
         row = {'CHR': rec.contig,
                'POS': rec.pos,
-            'PASS_Homoz_Ref':str(list(passing_d_male['obs_homo1'].values())[0])+";"+str(list(passing_d_female['obs_homo1'].values())[0]),
-            "PASS_Het":"0"+";"+",".join(str(x) for x in passing_d_female['obs_het'].values()),
-            "PASS_Homoz_Alt":",".join(str(x) for x in passing_d_male['obs_homo2'].values())+";"+",".join(str(x) for x in passing_d_female['obs_homo2'].values()),
-            'FAIL_Homoz_Ref':",".join(str(x) for x in failing_d_male['obs_homo1'].values())+";"+",".join(str(x) for x in failing_d_female['obs_homo1'].values()),
-            'FAIL_Het':",".join(str(x) for x in failing_d_male['obs_het'].values())+";"+",".join(str(x) for x in failing_d_female['obs_het'].values()),
-            'FAIL_Homoz_Alt':",".join(str(x) for x in failing_d_male['obs_homo2'].values())+";"+",".join(str(x) for x in failing_d_female['obs_homo2'].values()),
-            'MISSING': missing,
-            'GT_FAILED':gt_failed,
-            'CLEAN_Homoz_Ref': ",".join(str(x) for x in clean_d['male']['obs_homo1'].values()) + ";" + ",".join(str(x) for x in clean_d['female']['obs_homo1'].values()),
-            'CLEAN_Het' : str(0) + ";" + ",".join(str(x) for x in clean_d['female']['obs_het'].values()),
-            'CLEAN_Homoz_Alt': ",".join(str(x) for x in clean_d['male']['obs_homo2'].values()) + ";" + ",".join(str(x) for x in clean_d['female']['obs_homo2'].values()),
-            'MONO': int(3 in vf),
-            'CALLRATE':"{0:.5f}".format(callrate), 'CALLBAD':int(callrate < (1 - cfg.miss_rate)),
+            'Pass00':str(list(passing_d_male['obs_homo1'].values())[0])+";"+str(list(passing_d_female['obs_homo1'].values())[0]),
+            "Pass01":"0"+";"+",".join(str(x) for x in passing_d_female['obs_het'].values()),
+            "Pass11":",".join(str(x) for x in passing_d_male['obs_homo2'].values())+";"+",".join(str(x) for x in passing_d_female['obs_homo2'].values()),
+            'Fail00':",".join(str(x) for x in failing_d_male['obs_homo1'].values())+";"+",".join(str(x) for x in failing_d_female['obs_homo1'].values()),
+            'Fail01':",".join(str(x) for x in failing_d_male['obs_het'].values())+";"+",".join(str(x) for x in failing_d_female['obs_het'].values()),
+            'Fail11':",".join(str(x) for x in failing_d_male['obs_homo2'].values())+";"+",".join(str(x) for x in failing_d_female['obs_homo2'].values()),
+            'Missing': missing,
+            'GT_Failed':gt_failed,
+            'Clean00': ",".join(str(x) for x in clean_d['male']['obs_homo1'].values()) + ";" + ",".join(str(x) for x in clean_d['female']['obs_homo1'].values()),
+            'Clean01' : str(0) + ";" + ",".join(str(x) for x in clean_d['female']['obs_het'].values()),
+            'Clean11': ",".join(str(x) for x in clean_d['male']['obs_homo2'].values()) + ";" + ",".join(str(x) for x in clean_d['female']['obs_homo2'].values()),
+            'Mono': int(3 in vf),
+            'CallRate':"{0:.5f}".format(callrate), 'CallBad':int(callrate < (1 - cfg.miss_rate)),
             'GATKPass': int(1 not in vf),
             'AF': ",".join(str(x) for x in maf),
-            'MEAN_DEPTH':"{0:.5f}".format(mean_depth), 'HI_DEPTH':int(mean_depth > cfg.max_dp),
-            'ABHET':",".join(str(x) for x in ab_het),
-            'Mendelian_Inconsistency':mend_errors, 'Mend_pairs':mend_pairs,'propMI': "{0:.6f}".format(mend_errors / mend_pairs if mend_pairs >0 else -1), 
+            'MeanDepth':"{0:.5f}".format(mean_depth), 'HiDepth':int(mean_depth > cfg.max_dp),
+            'ABHet':",".join(str(x) for x in ab_het),
+            'Mend_Incon':mend_errors, 'Mend_pairs':mend_pairs,'propMI': "{0:.6f}".format(mend_errors / mend_pairs if mend_pairs >0 else -1), 
             'VFLAGS': ",".join(str(x) for x in vf),
             'rsID': rec.id if rec.id else '.',
             'RefAllele': rec.ref,
-            'AltAlleles': ",".join(rec.alts),
+            'AltAllele': ",".join(rec.alts),
             'QUAL':qual,
             'FILTER':",".join(rec.filter.keys()),
             'VTYPE': vtype,
             'MaleHet':sum(clean_d['male']['obs_het'].values())
-            #'MaleHet': ",".join(str(x) for x in clean_d['male']['obs_het'].values())
             }
         row.update(scores)
         writer.writerow(row)
@@ -577,7 +575,6 @@ def vcf_output_create_biallelic(rec, subset, clean_obs, vf, abhet, vtype, vcf_ou
     
 
     #Append Allele Counts to INFO field
-    print(rec.info['AC'])
     rec.info['AC'] = alt_allele_counts
     #print(rec.info['AC'])
 
@@ -898,15 +895,12 @@ def main():
                     vtype='MULTI_INDEL'
                 else:
                     raise "VTYPE error" 
-
                 samplesDict = gather_intersect_fam_vcf_samples(rec.samples, samplesDict)
                 for subset, sm_list in samplesDict.items():
-                    
                     rec_details = {'filter': rec.filter, 'ref': rec.ref, 'alt': rec.alts,
                                              'chr': rec.contig, 'pos': rec.pos}
                     #Calculate stats
                     [vf,maf,passing_d,failing_d,missing,gt_failed,clean_passing_d,sum_clean,depth_sum,ab_het,subg,subg_c,allele_count_dict,zhet_sample_counts] = calcVA_multiallelic(sm_list['dict'],rec_details,subset)
-                    
                     #MI
                     mend_pairs, mend_errors = check_mendelian_errors_multiallelic(prefix_mi, rec)
                     
@@ -922,7 +916,7 @@ def main():
                 if args.no_output_vcf == False:
                     #Append to INFO field headers and write to VCF file
                     vcf_output_create_multiallelic(rec, subset, clean_passing_d, maf, vf, ab_het, vtype, vcf_out)
-
+                
                 variant_ct += 1
             
             if args.no_output_vcf == False:
@@ -982,7 +976,6 @@ def main():
                     vtype='MULTI_INDEL'
                 else:
                     raise "VTYPE error" 
-             
             else: #Initiate biallelic variable for write_indiv_summary_chrx and find vtype
                 chrx_is_multiallelic = False
                 vtype = "SNV"
@@ -990,14 +983,12 @@ def main():
                     vtype = "Deletion"
                 elif len(rec.alts[0]) > 1:
                     vtype = "Insertion" 
-
             samplesDict_male = gather_intersect_fam_vcf_samples(rec.samples, samplesDict_male)
             samplesDict_female = gather_intersect_fam_vcf_samples(rec.samples, samplesDict_female)
             for (subset_male, sm_list_male), (subset_female, sm_list_female) in zip(samplesDict_male.items(), samplesDict_female.items()):
                 
                 rec_details= {'filter': rec.filter, 'ref': rec.ref, 'alt': rec.alts,
                      'chr': rec.contig, 'pos': rec.pos}
-                
                 #Calculate stats
                 [vf,passing_d_male,passing_d_female,failing_d_male,failing_d_female,missing,gt_failed,clean_d,sum_clean,maf,depth_sum, ab_het,subg_male,subg_female,subg_c_male,subg_c_female,zhet_dict,zhet_sample_counts] = calcVA_chrx(sm_list_male['dict'],sm_list_female['dict'],rec_details,subset_male,subset_female)
                 #MI 
@@ -1033,7 +1024,6 @@ def main():
         if args.no_output_vcf == False:
         # create index
             time.sleep(1)
-            print('here')
             check_output(["tabix", "-f", vcf_out_filename])
     
 
@@ -1070,7 +1060,6 @@ def main():
 
                 # MI
                 mend_pairs, mend_errors = check_mendelian_errors(prefix_mi, rec)
-
                 # pHWE per subgroup
                 scores = calculate_subgroup_scores(subset, subg, subg_cntl)
 
@@ -1153,7 +1142,6 @@ def calculate_subgroup_scores_multiallelic(subset, subg, subg_cntl,allele_count_
     """
     from itertools import combinations_with_replacement
     scores = OrderedDict()
-    
     if mi.sa.get_divide():
       subset = subset.split('-')[0]
     for k in sorted(mi.sa.subsets[subset]):
@@ -1190,7 +1178,6 @@ def calculate_subgroup_scores_multiallelic(subset, subg, subg_cntl,allele_count_
                     if allele_match in key1:
                         nclean_subg[k].append(subg[k][classification][key1])
                         nclean_cntl[k].append(subg_cntl[k][classification][key2])
-
         scores['nClean_' + k] = ",".join((str(x) for x in nclean_subg[k])) + ';' +  ",".join((str(x) for x in nclean_cntl[k]))
         scores['Zhet_' + k] = calc_ExcessHet_multiallelic(zhet_val,zhet_count)
         scores['pHWE_' + k] = calc_pHWE(*phwe_vals[k]) if sum(phwe_vals[k]) >= 5 else '.'
@@ -1272,7 +1259,6 @@ def calculate_subgroup_scores_chrx(alts,subset, subg_male,subg_female, subg_cntl
                         phwe_vals[k][1] += subg_cntl_female[k][classification][key]
             else:
                 phwe_vals[k][2] += sum(subg_cntl_female[k][classification].values())
-
         scores['nClean_' + k] = ",".join((str(x) for x in subg_male[k]['obs_homo1'].values())) +  "," + ",".join((str(x) for x in subg_male[k]['obs_homo2'].values())) +  "," + ",".join((str(x) for x in nclean_female_subg[k])) + ';' + ",".join((str(x) for x in subg_cntl_male[k]['obs_homo1'].values())) + "," + ",".join((str(x) for x in subg_cntl_male[k]['obs_homo2'].values())) + "," + ",".join((str(x) for x in nclean_female_subg_cntl[k]))
         scores['Zhet_' + k] = calc_ExcessHet_multiallelic(zhet_val,zhet_count)
         scores['pHWE_' + k] = calc_pHWE(*phwe_vals[k]) if sum(phwe_vals[k]) >= 5 else '.'
