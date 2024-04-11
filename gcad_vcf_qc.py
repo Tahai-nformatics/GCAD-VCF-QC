@@ -163,7 +163,7 @@ def write_subset_stats_multiallelic(prefix, rec, subset,maf, vf, passing_d,faili
                      ]
         fieldnames.extend(scores.keys())
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames , delimiter='\t', lineterminator='\n')
-
+        
         if newfile:
             writer.writeheader()
         qual = "{0:.2f}".format(rec.qual) if rec.qual is not None else 'NA'
@@ -185,7 +185,7 @@ def write_subset_stats_multiallelic(prefix, rec, subset,maf, vf, passing_d,faili
             'GATKPass': int(1 not in vf),
             'AF': ",".join(str(x) for x in maf),
             'MeanDepth':"{0:.6f}".format(mean_depth), 'HiDepth':int(mean_depth > cfg.max_dp),
-            'ABHet':",".join(str(x) for x in ab_het),
+            'ABHet':",".join(str(x) for x in ab_het[1:]) if len(ab_het) > 1 else ".",
             'Mend_Incon':mend_errors, 'Mend_pairs':mend_pairs,'propMI': "{0:.6f}".format(mend_errors / mend_pairs if mend_pairs >0 else -1),
             'AF': ",".join(str(x) for x in maf),
             'VFLAGS': ",".join(str(x) for x in vf),
@@ -341,7 +341,7 @@ def write_subset_stats_chrx(prefix, rec, subset,vf,passing_d_male,passing_d_fema
             'GATKPass': int(1 not in vf),
             'AF': ",".join(str(x) for x in maf),
             'MeanDepth':"{0:.5f}".format(mean_depth), 'HiDepth':int(mean_depth > cfg.max_dp),
-            'ABHet':",".join(str(x) for x in ab_het),
+            'ABHet':",".join(str(x) for x in ab_het[1:]) if len(ab_het) > 1 else ".",
             'Mend_Incon':mend_errors, 'Mend_pairs':mend_pairs,'propMI': "{0:.6f}".format(mend_errors / mend_pairs if mend_pairs >0 else -1), 
             'VFLAGS': ",".join(str(x) for x in vf),
             'rsID': rec.id if rec.id else '.',
@@ -623,7 +623,7 @@ def vcf_output_create_multiallelic(rec, subset, clean_d, maf, vf, ab_het, vtype,
     rec.info[ "VFLAGS_" + subset ] = vf
 
     #Append subset ABHet to INFO field
-    rec.info[ "ABHet_" + subset ] = [str(num) for num in ab_het]
+    rec.info["ABHet_" + subset] = ab_het[0] if len(ab_het) == 1 else ",".join(map(str, ab_het[1:]))
 
     #Append VariantType to INFO field 
     rec.info[ "VariantType" ] = vtype
@@ -673,15 +673,13 @@ def vcf_output_create_chrX(rec, subset, passing_d, maf, vf, ab_het, vtype, vcf_o
     rec.info[ "VFLAGS_" + subset ] = vf
 
     #Append subset ABHet to INFO field
-    #abhet_vcf = [str(item) for item in ab_het]
-    rec.info[ "ABHet_" + subset ] = [str(num) for num in ab_het]
+    rec.info["ABHet_" + subset] = ab_het[0] if len(ab_het) == 1 else ",".join(map(str, ab_het[1:]))
 
     #Append VariantType to INFO field
     rec.info[ "VariantType" ] = vtype
 
     #Write to VCF File
     vcf_out.write(rec)
-
 
 def main():
     argparser = ArgumentParser()

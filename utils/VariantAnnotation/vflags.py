@@ -213,7 +213,7 @@ def calcVA_multiallelic(snp_samples,rec_details,subset):
 
     #Skipping VLAG 11 (WES)
 
-    [passing_d,failing_d,missing,gt_failed,clean_passing_d,depth_sum,abhet_AD_list,het_dp,subg,subg_c,allele_count_dict,zhet_sample_counts]= count_gt_multiallelic(snp_samples,rec_details)
+    [passing_d,failing_d,missing,gt_failed,clean_passing_d,depth_sum,abhet_AD_list,abhet_DP_list,subg,subg_c,allele_count_dict,zhet_sample_counts]= count_gt_multiallelic(snp_samples,rec_details)
     obs_hom1 = sum(list(passing_d['obs_homo1'].values()))
     obs_het = sum(list(passing_d['obs_het'].values()))
     obs_hom2 = sum(list(passing_d['obs_homo2'].values()))
@@ -275,17 +275,17 @@ def calcVA_multiallelic(snp_samples,rec_details,subset):
     if total_genotypes > 0:
         if (depth_sum / total_genotypes) > cfg.max_dp:
             vf.append(5)
-    
-    if het_dp > 0:
-        for allele in ab_het:
-            if abhet_AD_list[allele] == 0:
-                ab_het[allele] = '.'
+
+
+
+    if sum(abhet_DP_list) > 0:
+        for item in ab_het:
+            if abhet_DP_list[item] == 0:
+                ab_het[item] = '.'
             else:
-                ab_het[allele] = "{0:.4f}".format(abhet_AD_list[allele] / het_dp)
-                if ab_het[allele] == '0.0000':
-                    ab_het[allele] = '.'
-    else:
-        ab_het = '.'
+                ab_het[item] = "{0:.4f}".format(abhet_AD_list[item] / abhet_DP_list[item])
+                if ab_het[item] == '0.0000':
+                    ab_het[item] = '.'
 
     if len(vf) < 1:
         vf.append(0)

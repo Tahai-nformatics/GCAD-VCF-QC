@@ -158,9 +158,9 @@ def count_gt_multiallelic(samples,rec_details):
     missing = 0
     depth_sum = 0
     gt_failed = 0
-    het_dp = 0
     zhet_sample_counts = OrderedDict({key:[0,0] for key in mi.sa.subgroups}) # Counts for Het and Homozygous_alts
     abhet_AD_list = [0 for i in allele_list]
+    abhet_DP_list = copy.deepcopy(abhet_AD_list)
     subgroup_counts = OrderedDict({key:{'obs_homo1':{},'obs_het':{},'obs_homo2':{}} for key in mi.sa.subgroups})
     subgroup_counts_cntrls = copy.deepcopy(subgroup_counts)
     mi.sa.clear_mpairs()
@@ -243,7 +243,6 @@ def count_gt_multiallelic(samples,rec_details):
                     allele_count_dict[subgroup][sm['GT'][1]] +=2
         else: #Heterozygous sample
             passing_d['obs_het'][(sm['GT'], (sm['GT'][1],sm['GT'][0]))] +=1
-            het_dp += sm['DP']
             zhet_sample_counts[subgroup][0] += 1
             allele_count_dict[subgroup][sm['GT'][0]] +=1
             allele_count_dict[subgroup][sm['GT'][1]] +=1
@@ -256,15 +255,16 @@ def count_gt_multiallelic(samples,rec_details):
                 zhet_sample_counts[subgroup][0] += 1
                 allele_count_dict[subgroup][sm['GT'][0]] +=1
                 allele_count_dict[subgroup][sm['GT'][1]] +=1
-        
+       
             for allele in sm['GT']:
                 abhet_AD_list[allele] += sm['AD'][allele]
-
+            abhet_DP_list[sm['GT'][0]] += ( sm['AD'][sm['GT'][0]] + sm['AD'][sm['GT'][1]] )
+            abhet_DP_list[sm['GT'][1]] += ( sm['AD'][sm['GT'][1]] + sm['AD'][sm['GT'][0]] )
 
         tallyPassingSample(k,sm)
-        
+    
     clean_passing_d = copy.deepcopy(passing_d)
-    return [passing_d,failing_d,missing,gt_failed,clean_passing_d,depth_sum,abhet_AD_list,het_dp,subgroup_counts, subgroup_counts_cntrls,allele_count_dict,zhet_sample_counts]
+    return [passing_d,failing_d,missing,gt_failed,clean_passing_d,depth_sum,abhet_AD_list,abhet_DP_list,subgroup_counts, subgroup_counts_cntrls,allele_count_dict,zhet_sample_counts]
 
 def count_gt_chrx(male_samples,female_samples,rec_details):
     N = len(rec_details['alt'])
@@ -497,7 +497,6 @@ def count_gt_chrx(male_samples,female_samples,rec_details):
                     abhet_AD_list[allele] += sm['AD'][allele]
                 abhet_DP_list[sm['GT'][0]] += ( sm['AD'][sm['GT'][0]] + sm['AD'][sm['GT'][1]] )
                 abhet_DP_list[sm['GT'][1]] += ( sm['AD'][sm['GT'][1]] + sm['AD'][sm['GT'][0]] )
-
 
     clean_d['male'],clean_d['female'] = copy.deepcopy(passing_d_male), copy.deepcopy(passing_d_female)
 
