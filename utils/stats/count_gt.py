@@ -172,7 +172,6 @@ def count_gt_multiallelic(samples,rec_details):
                             'obs_homo2': {((i, b), (b, i)): 0 for i in allele_list for b in allele_list[i:] if (i, b) == (b, i) and i != 0}}
     failing_d = copy.deepcopy(passing_d)
     
-
     for i in allele_list:    #Create Passing and Failing Dictionary with keys being all possible Genotypes. Pipeline coded to recognize both orientations of GT's example: (0,1) and (1,0) GT's
             for b in allele_list[i:]:
                 for subgroup in mi.sa.subgroups:
@@ -194,17 +193,20 @@ def count_gt_multiallelic(samples,rec_details):
             continue
         try:
             if (sm['DP'] < cfg.MINDP or sm['GQ'] < cfg.MINGQ):
-                if sm['GT'] == (0,0):
-                    failing_d['obs_homo1'][((0, 0), (0, 0))]  += 1
-                    mi.sa.sa_collection[k].tallySA['failing_obs_homo1'] += 1    # Add Failing samples to SA
-                else:
-                    if sm['GT'][0] == sm['GT'][1]: # Failing homozygous ALT
+                if sm['GT'][0] == sm['GT'][1]: #Homozygous Sample (REF or ALT)  
+                    if sm['GT'] == (0,0):
+                        failing_d['obs_homo1'][((0, 0), (0, 0))]  += 1
+                        mi.sa.sa_collection[k].tallySA['failing_obs_homo1'] += 1    # Add Failing samples to SA
+                    else: #Homozygous ALT
                         failing_d['obs_homo2'][(sm['GT'], (sm['GT'][1],sm['GT'][0]))] +=1
                         mi.sa.sa_collection[k].tallySA['failing_obs_homo2'] += 1
-                    if sm['GT'][0] != sm['GT'][1]:
-                        failing_d['obs_het'][(sm['GT'], (sm['GT'][1],sm['GT'][0]))] +=1
+                else: #Heterozygous sample
+                    failing_d['obs_het'][(sm['GT'], (sm['GT'][1],sm['GT'][0]))] +=1
+                    if 0 in sm['GT']: # Treat Alternate alleles in a Het sample differently for Zhet calculations
                         mi.sa.sa_collection[k].tallySA['failing_obs_het'] += 1
-                
+                    else:
+                        mi.sa.sa_collection[k].tallySA['failing_obs_homo2'] += 1
+
                 sm['GT'] = (None, None)
                 gt_failed += 1
                 tallyFailedSample(k, sm)
@@ -262,7 +264,8 @@ def count_gt_multiallelic(samples,rec_details):
             abhet_DP_list[sm['GT'][1]] += ( sm['AD'][sm['GT'][1]] + sm['AD'][sm['GT'][0]] )
 
         tallyPassingSample(k,sm)
-    
+
+
     clean_passing_d = copy.deepcopy(passing_d)
     return [passing_d,failing_d,missing,gt_failed,clean_passing_d,depth_sum,abhet_AD_list,abhet_DP_list,subgroup_counts, subgroup_counts_cntrls,allele_count_dict,zhet_sample_counts]
 

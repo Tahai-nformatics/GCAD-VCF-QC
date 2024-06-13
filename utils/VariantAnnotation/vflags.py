@@ -276,16 +276,19 @@ def calcVA_multiallelic(snp_samples,rec_details,subset):
         if (depth_sum / total_genotypes) > cfg.max_dp:
             vf.append(5)
 
-
-
+    #ABHet
     if sum(abhet_DP_list) > 0:
-        for item in ab_het:
-            if abhet_DP_list[item] == 0:
-                ab_het[item] = '.'
+        for allele in ab_het:
+            if abhet_DP_list[allele] == 0:
+                ab_het[allele] = '.'
             else:
-                ab_het[item] = "{0:.4f}".format(abhet_AD_list[item] / abhet_DP_list[item])
-                if ab_het[item] == '0.0000':
-                    ab_het[item] = '.'
+                ab_het[allele] = "{0:.5f}".format(abhet_AD_list[allele] / abhet_DP_list[allele])
+                if ab_het[allele] == '0.0000':
+                    ab_het[allele] = '.'
+    else:
+        for allele in ab_het:
+            ab_het[allele] = '.'
+    
 
     if len(vf) < 1:
         vf.append(0)
