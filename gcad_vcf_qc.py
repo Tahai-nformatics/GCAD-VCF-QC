@@ -993,7 +993,7 @@ def main():
                 
                 #Companion file
                 write_subset_stats_chrx(prefix_companions, rec, subset_male,vf,passing_d_male,passing_d_female,failing_d_male,failing_d_female,missing,gt_failed,clean_d,sum_clean,maf,depth_sum,ab_het,mend_pairs, mend_errors, scores, vtype) 
-
+            
             find_s_d_chrx(clean_d, rec.samples)
 
             if args.no_output_vcf == False:
@@ -1027,88 +1027,89 @@ def main():
             if len(rec.alts) > 1:
             #print("Warning found multiallelic variant")
                 continue
-        # Variant Type: SNV, MNV, insertion, deletion
-            vtype = "SNV"
-            if len(rec.ref) > 1:
-                vtype = "Deletion"
-            elif len(rec.alts[0]) > 1:
-                vtype = "Insertion"
+            if rStart is None or (rStart <= rec.pos <= rEnd): #If the current position is within --region OR if no region given:
+            # Variant Type: SNV, MNV, insertion, deletion
+                vtype = "SNV"
+                if len(rec.ref) > 1:
+                    vtype = "Deletion"
+                elif len(rec.alts[0]) > 1:
+                    vtype = "Insertion"
 
-            #
-            samplesDict = gather_intersect_fam_vcf_samples(rec.samples, samplesDict)
-            grp_obs = list()
-            vflag_11_ct = 0
+                #
+                samplesDict = gather_intersect_fam_vcf_samples(rec.samples, samplesDict)
+                grp_obs = list()
+                vflag_11_ct = 0
 
-            for subset, sm_list in samplesDict.items():
-                # calc stats
-                [vf, abhet, passing, failing, missing, gt_failed, depth_sum, clean_obs, subg, subg_cntl] = calcVA(
-                    sm_list['dict'],
-                    {'filter': rec.filter, 'ref': rec.ref, 'alt': rec.alts,
-                     'chr': rec.contig, 'pos': rec.pos
-                     },
-                    subset,
-                )
+                for subset, sm_list in samplesDict.items():
+                    # calc stats
+                    [vf, abhet, passing, failing, missing, gt_failed, depth_sum, clean_obs, subg, subg_cntl] = calcVA(
+                        sm_list['dict'],
+                        {'filter': rec.filter, 'ref': rec.ref, 'alt': rec.alts,
+                         'chr': rec.contig, 'pos': rec.pos
+                         },
+                        subset,
+                    )
 
-                grp_obs.append(clean_obs)
+                    grp_obs.append(clean_obs)
 
-                # MI
-                mend_pairs, mend_errors = check_mendelian_errors(prefix_mi, rec)
-                # pHWE per subgroup
-                scores = calculate_subgroup_scores(subset, subg, subg_cntl)
+                    # MI
+                    mend_pairs, mend_errors = check_mendelian_errors(prefix_mi, rec)
+                    # pHWE per subgroup
+                    scores = calculate_subgroup_scores(subset, subg, subg_cntl)
 
-                # Companion file
-                have_target = 0
+                    # Companion file
+                    have_target = 0
+                    if isWES:
+                       have_target = samplesDict[subset]['have_target']
+                    write_subset_stats(prefix_companions, subset, rec, vf, abhet,
+                                       passing, failing, missing, gt_failed, depth_sum, clean_obs,
+                                       mend_pairs, mend_errors, scores, vtype,
+                                       isWES, have_target
+                                      )
+          
+
+                    #vcf_output_create_biallelic(rec, subset, clean_obs, vf, abhet, vtype, vcf_out)
+                    
+                    #Append Allele Number to INFO field
+                    rec.info["AN"] =  2 * sum(clean_obs)
+                    
+                    #Append Allele Counts to INFO field
+                    rec.info['AC'] = 2*clean_obs[2] + clean_obs[1]
+                    
+                    #Append Allele Frequency to INFO field
+                    rec.info['AF'] = float((clean_obs[1] + (2 * clean_obs[2]))/ (2 * sum(clean_obs)))  if sum(clean_obs) > 0 else 0
+
+                    # Append subset VFLAGS to INFO field
+                    rec.info[ "VFLAGS_" + subset ] = vf
+
+                    # Append subset ABHet to INFO field
+                    rec.info[ "ABHet_" + subset ] = float(abhet) if abhet != 'NA' else None
+
+                    # Append VariantType
+                    rec.info[ "VariantType" ] = vtype
+
+                    # count number of vflag(11) for VariantInTargetRatio
+                    if have_target:
+                       #vflag_11_ct += (11 not in vf)
+                       if (11 not in vf):
+                          #vflag_11_ct += sum( mi.sa.subsets[subset].values())
+                          vflag_11_ct += missing + gt_failed + sum(clean_obs)
+
+                # Append VariantInTargetRatio
                 if isWES:
-                   have_target = samplesDict[subset]['have_target']
-                write_subset_stats(prefix_companions, subset, rec, vf, abhet,
-                                   passing, failing, missing, gt_failed, depth_sum, clean_obs,
-                                   mend_pairs, mend_errors, scores, vtype,
-                                   isWES, have_target
-                                  )
-      
+                   rec.info[ "VariantInTargetFraction" ] = str(vflag_11_ct) + '/' + str(set_size)
+                   rec.info[ "VariantInTargetRatio" ] = vflag_11_ct / set_size
 
-                #vcf_output_create_biallelic(rec, subset, clean_obs, vf, abhet, vtype, vcf_out)
-                
-                #Append Allele Number to INFO field
-                rec.info["AN"] =  2 * sum(clean_obs)
-                
-                #Append Allele Counts to INFO field
-                rec.info['AC'] = 2*clean_obs[2] + clean_obs[1]
-                
-                #Append Allele Frequency to INFO field
-                rec.info['AF'] = float((clean_obs[1] + (2 * clean_obs[2]))/ (2 * sum(clean_obs)))  if sum(clean_obs) > 0 else 0
+                # sum obs by column
+                total_obs = list(map(sum, zip(*grp_obs)))
 
-                # Append subset VFLAGS to INFO field
-                rec.info[ "VFLAGS_" + subset ] = vf
-
-                # Append subset ABHet to INFO field
-                rec.info[ "ABHet_" + subset ] = float(abhet) if abhet != 'NA' else None
-
-                # Append VariantType
-                rec.info[ "VariantType" ] = vtype
-
-                # count number of vflag(11) for VariantInTargetRatio
-                if have_target:
-                   #vflag_11_ct += (11 not in vf)
-                   if (11 not in vf):
-                      #vflag_11_ct += sum( mi.sa.subsets[subset].values())
-                      vflag_11_ct += missing + gt_failed + sum(clean_obs)
-
-            # Append VariantInTargetRatio
-            if isWES:
-               rec.info[ "VariantInTargetFraction" ] = str(vflag_11_ct) + '/' + str(set_size)
-               rec.info[ "VariantInTargetRatio" ] = vflag_11_ct / set_size
-
-            # sum obs by column
-            total_obs = list(map(sum, zip(*grp_obs)))
-
-            find_s_d(total_obs, rec.samples)
+                find_s_d(total_obs, rec.samples)
 
             if args.no_output_vcf == False:
                 vcf_out.write(rec)
 
-            #print()
-            variant_ct += 1
+                #print()
+                variant_ct += 1
 
         if args.no_output_vcf == False: vcf_out.close()
 
@@ -1344,27 +1345,32 @@ def find_s_d_chrx(clean_d, samples):
     maf = 0
     
     total_obs = sum(list(clean_d['male']['obs_homo1'].values())) + sum(list(clean_d['female']['obs_homo1'].values())) + sum(list(clean_d['female']['obs_het'].values())) + sum(list(clean_d['male']['obs_homo2'].values())) + sum(list(clean_d['female']['obs_homo2'].values()))
-    total_obs_homo_ref =  sum(list(clean_d['male']['obs_homo1'].values())) + sum(list(clean_d['female']['obs_homo1'].values()))
+    total_obs_homo_ref = sum(list(clean_d['female']['obs_homo1'].values()))
     total_obs_het = sum(list(clean_d['female']['obs_het'].values())) + sum(list(clean_d['male']['obs_homo2'].values()))
     total_obs_homo_alt =sum(list(clean_d['female']['obs_homo2'].values()))
     female_obs = sum(list(clean_d['female']['obs_homo1'].values())) + sum(list(clean_d['female']['obs_het'].values())) + sum(list(clean_d['female']['obs_homo2'].values()))
     male_obs = sum(list(clean_d['male']['obs_homo1'].values())) + sum(list(clean_d['male']['obs_homo2'].values()))  
-
+    
     if total_obs > 0:
         maf = (total_obs_het + (2 * total_obs_homo_alt)) / ((2 * female_obs) + male_obs)
+    
+
     if maf <= 0.5:
-        # singleton
         if total_obs_het == 1 and total_obs_homo_alt == 0:
             if sum(list(clean_d['female']['obs_het'].values())):                    #Het sample is female, use female GT 0/1
                 idv = find_singleton_chrx(samples, clean_d['female']['obs_het'].keys(), "1")
-                if idv: mi.sa.sa_collection[idv].tallySA['singleton'] += 1
+                if idv:
+                    mi.sa.sa_collection[idv].tallySA['singleton'] += 1
+                    
             if sum(list(clean_d['male']['obs_homo2'].values())):                  #Het sample is male, use male GT 1/1
                 idv = find_singleton_chrx(samples, clean_d['male']['obs_homo2'].keys(), "0")
-                if idv: mi.sa.sa_collection[idv].tallySA['singleton'] += 1
+                if idv:
+                    mi.sa.sa_collection[idv].tallySA['singleton'] += 1
          #private_doubleton
         elif total_obs_homo_alt == 1 and total_obs_het == 0:
             idv = find_private_doubleton_chrx(samples,clean_d['female']['obs_homo2'].keys(), "1")
-            if idv: mi.sa.sa_collection[idv].tallySA['p_dblton'] +=1
+            if idv:
+                mi.sa.sa_collection[idv].tallySA['p_dblton'] +=1
 
         #doubleton
         elif total_obs_het == 2 and total_obs_homo_alt == 0:
@@ -1378,28 +1384,33 @@ def find_s_d_chrx(clean_d, samples):
                     mi.sa.sa_collection[idv].tallySA['doubleton'] += 1
 
     else:
+        total_obs_het = sum(list(clean_d['female']['obs_het'].values())) + sum(list(clean_d['male']['obs_homo1'].values()))
         #singleton
         if total_obs_het == 1 and total_obs_homo_ref == 0:
             if sum(list(clean_d['female']['obs_het'].values())):                #If Female hets, use 0/1 GT
                 idv = find_singleton_chrx(samples, clean_d['female']['obs_het'].keys(), "1")
-                if idv: mi.sa.sa_collection[idv].tallySA['singleton'] += 1
-            if sum(list(clean_d['male']['obs_homo2'].values())):              #If Male hets, use 1/1 GT
-                idv = find_singleton_chrx(samples, clean_d['male']['obs_homo2'].keys(), "0")
-                if idv: mi.sa.sa_collection[idv].tallySA['singleton'] += 1
+                if idv: 
+                    mi.sa.sa_collection[idv].tallySA['singleton'] += 1
+            if sum(list(clean_d['male']['obs_homo1'].values())):              #If Male hets, use 1/1 GT
+                idv = find_singleton_chrx(samples, clean_d['male']['obs_homo1'].keys(), "0")
+                if idv:
+                    mi.sa.sa_collection[idv].tallySA['singleton'] += 1
 
         #private_doubleton
         elif total_obs_homo_ref == 1 and total_obs_het == 0:
             if sum(list(clean_d['male']['obs_homo1'].values())):                #If male Homozygous_ref, use 0/0 GT
                 idv = find_private_doubleton_chrx(samples, clean_d['male']['obs_homo1'].keys(), "0")
-                if idv: mi.sa.sa_collection[idv].tallySA['p_dblton'] += 1
+                if idv: 
+                    mi.sa.sa_collection[idv].tallySA['p_dblton'] += 1
             else:                                                               #If female Homozygous_ref, use 0/0 GT
                 idv = find_private_doubleton_chrx(samples, clean_d['female']['obs_homo1'].keys(), "1")
-                if idv: mi.sa.sa_collection[idv].tallySA['p_dblton'] += 1
+                if idv: 
+                    mi.sa.sa_collection[idv].tallySA['p_dblton'] += 1
 
         #doubleton
         elif total_obs_het == 2 and total_obs_homo_ref == 0:                    #If Male Het, use 1/1 GT
-            if sum(list(clean_d['male']['obs_homo2'].values())):
-                dbltons = find_doubletons_chrx(samples,clean_d['male']['obs_homo2'].keys(), "0")
+            if sum(list(clean_d['male']['obs_homo1'].values())):
+                dbltons = find_doubletons_chrx(samples,clean_d['male']['obs_homo1'].keys(), "0")
                 for idv in dbltons:
                     mi.sa.sa_collection[idv].tallySA['doubleton'] += 1
             if sum(list(clean_d['female']['obs_het'].values())):                #If Female het, use 0/1 GT
@@ -1428,18 +1439,6 @@ def find_singleton_multiallelic(samples, het_alleles):
                 except TypeError:  # TypeError: unorderable types: NoneType() < int() (missing DP)
                     continue
 
-def find_singleton_chrx(samples, het_alleles, gender):
-    abc_order = OrderedDict(sorted(mi.sa.sa_collection.items()))
-    for k, sm in samples.items():
-        if gender == abc_order[k].details_dict.SEX:
-            for gts in het_alleles:
-                if sm['GT'] in gts:
-                    try:
-                        if (sm['DP'] >= cfg.MINDP
-                            and sm['GQ'] >= cfg.MINGQ):
-                                return k
-                    except TypeError:  # TypeError: unorderable types: NoneType() < int() (missing DP)
-                        continue
 
 def find_private_doubleton(samples, allele):
     for k, sm in samples.items():
@@ -1485,8 +1484,7 @@ def find_singleton_chrx(samples, het_alleles, gender):
                     try:
                         if (sm['DP'] >= cfg.MINDP
                             and sm['GQ'] >= cfg.MINGQ):
-                                if gender == abc_order[k].details_dict.SEX:
-                                    return k
+                                return k
                     except TypeError:  # TypeError: unorderable types: NoneType() < int() (missing DP)
                         continue
 
@@ -1533,7 +1531,7 @@ def find_doubletons_chrx(samples, het_alleles, gender):
                     try:
                         if (sm['DP'] >= cfg.MINDP
                             and sm['GQ'] >= cfg.MINGQ):
-                                k_list.append(k)
+                            k_list.append(k)
                     except TypeError:  #TypeError: unorderable types: NoneType() < int() (missing DP)
                         continue
                 if len(k_list) == 2:
