@@ -132,7 +132,7 @@ def extract_subsets_chrx(fam):
 
 
 
-def write_subset_stats_multiallelic(prefix, rec, subset,maf, vf, passing_d,failing_d, missing,gt_failed,clean_passing_d,sum_clean,depth_sum,ab_het,mend_pairs,mend_errors,scores,VTYPE):
+def write_subset_stats_multiallelic(prefix, rec, subset,maf, vf, passing_d,failing_d, missing,gt_failed,clean_passing_d,sum_clean,depth_sum,ab_het,mend_pairs,mend_errors,VTYPE):
 
     """
          passing_d = {'obs_homo1':{},'obs_het':{},'obs_homo2':{}}
@@ -161,7 +161,7 @@ def write_subset_stats_multiallelic(prefix, rec, subset,maf, vf, passing_d,faili
                       'VFLAGS', 'rsID', 'RefAllele', 'AltAllele',
                       'QUAL','FILTER','VTYPE',
                      ]
-        fieldnames.extend(scores.keys())
+        #fieldnames.extend(scores.keys())
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames , delimiter='\t', lineterminator='\n')
         
         if newfile:
@@ -195,11 +195,11 @@ def write_subset_stats_multiallelic(prefix, rec, subset,maf, vf, passing_d,faili
             'FILTER':",".join(rec.filter.keys()),
             'VTYPE': VTYPE,
             }
-        row.update(scores)
+        #row.update(scores)
         writer.writerow(row)
     return
 
-def write_subset_stats(prefix, subset, rec, vf, abhet, passing, failing, missing, gt_failed, depth_sum, clean_obs, mend_pairs, mend_errors, scores, vtype, isWES, have_target):
+def write_subset_stats(prefix, subset, rec, vf, abhet, passing, failing, missing, gt_failed, depth_sum, clean_obs, mend_pairs, mend_errors, vtype, isWES, have_target):
     """
     """
     outfile = '{}.{}.tsv'.format(prefix, subset)
@@ -220,7 +220,7 @@ def write_subset_stats(prefix, subset, rec, vf, abhet, passing, failing, missing
             fieldnames.extend(['InTargetRegion'])
 
         # Add column names for subgroup scores
-        fieldnames.extend(scores.keys())
+        #fieldnames.extend(scores.keys())
 
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames , delimiter='\t', lineterminator='\n')
 
@@ -282,12 +282,12 @@ def write_subset_stats(prefix, subset, rec, vf, abhet, passing, failing, missing
            else:
               row['InTargetRegion'] = '.'
 
-        row.update(scores)
+        #row.update(scores)
         writer.writerow(row)
 
     return
 
-def write_subset_stats_chrx(prefix, rec, subset,vf,passing_d_male,passing_d_female,failing_d_male,failing_d_female,missing,gt_failed,clean_d,sum_clean,maf,depth_sum,ab_het,mend_pairs,mend_errors,scores, vtype):
+def write_subset_stats_chrx(prefix, rec, subset,vf,passing_d_male,passing_d_female,failing_d_male,failing_d_female,missing,gt_failed,clean_d,sum_clean,maf,depth_sum,ab_het,mend_pairs,mend_errors, vtype):
 
     """
          passing_d = {GT_type: {GT:count}, GT_type: {GT:count}, GT_type: {GT:count}}
@@ -316,7 +316,7 @@ def write_subset_stats_chrx(prefix, rec, subset,vf,passing_d_male,passing_d_fema
                       'VFLAGS', 'rsID', 'RefAllele', 'AltAllele',
                       'QUAL','FILTER','VTYPE','MaleHet',
                      ]
-        fieldnames.extend(scores.keys())
+        #fieldnames.extend(scores.keys())
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames , delimiter='\t', lineterminator='\n')
 
         if newfile:
@@ -351,7 +351,7 @@ def write_subset_stats_chrx(prefix, rec, subset,vf,passing_d_male,passing_d_fema
             'VTYPE': vtype,
             'MaleHet':sum(clean_d['male']['obs_het'].values())
             }
-        row.update(scores)
+        #row.update(scores)
         writer.writerow(row)
 
 
@@ -897,15 +897,15 @@ def main():
                         rec_details = {'filter': rec.filter, 'ref': rec.ref, 'alt': rec.alts,
                                                  'chr': rec.contig, 'pos': rec.pos}
                         #Calculate stats
-                        [vf,maf,passing_d,failing_d,missing,gt_failed,clean_passing_d,sum_clean,depth_sum,ab_het,subg,subg_c,allele_count_dict,zhet_sample_counts] = calcVA_multiallelic(sm_list['dict'],rec_details,subset)
+                        [vf,maf,passing_d,failing_d,missing,gt_failed,clean_passing_d,sum_clean,depth_sum,ab_het] = calcVA_multiallelic(sm_list['dict'],rec_details,subset)
                         #MI
                         mend_pairs, mend_errors = check_mendelian_errors_multiallelic(prefix_mi, rec)
                         
                         #pHWE per subgroup
-                        scores = calculate_subgroup_scores_multiallelic(subset, subg, subg_c,allele_count_dict,zhet_sample_counts)
+                        #scores = calculate_subgroup_scores_multiallelic(subset, subg, subg_c,allele_count_dict,zhet_sample_counts)
                         
                         #Companion file
-                        write_subset_stats_multiallelic(prefix_companions, rec, subset, maf ,vf,passing_d,failing_d,missing,gt_failed,clean_passing_d,sum_clean,depth_sum,ab_het,mend_pairs,mend_errors,scores,vtype)
+                        write_subset_stats_multiallelic(prefix_companions, rec, subset, maf ,vf,passing_d,failing_d,missing,gt_failed,clean_passing_d,sum_clean,depth_sum,ab_het,mend_pairs,mend_errors,vtype)
                         
 
                     find_s_d_multiallelic(clean_passing_d,rec.samples)
@@ -984,15 +984,15 @@ def main():
                 rec_details= {'filter': rec.filter, 'ref': rec.ref, 'alt': rec.alts,
                      'chr': rec.contig, 'pos': rec.pos}
                 #Calculate stats
-                [vf,passing_d_male,passing_d_female,failing_d_male,failing_d_female,missing,gt_failed,clean_d,sum_clean,maf,depth_sum, ab_het,subg_male,subg_female,subg_c_male,subg_c_female,zhet_dict,zhet_sample_counts] = calcVA_chrx(sm_list_male['dict'],sm_list_female['dict'],rec_details,subset_male,subset_female)
+                [vf,passing_d_male,passing_d_female,failing_d_male,failing_d_female,missing,gt_failed,clean_d,sum_clean,maf,depth_sum, ab_het] = calcVA_chrx(sm_list_male['dict'],sm_list_female['dict'],rec_details,subset_male,subset_female)
                 #MI 
                 mend_pairs, mend_errors = check_mendelian_errors_chrx(prefix_mi, rec)
                 
                 #pHWE per subgroup
-                scores = calculate_subgroup_scores_chrx(rec.alts,subset_male, subg_male,subg_female, subg_c_male,subg_c_female,zhet_dict,zhet_sample_counts)
+                #scores = calculate_subgroup_scores_chrx(rec.alts,subset_male, subg_male,subg_female, subg_c_male,subg_c_female,zhet_dict,zhet_sample_counts)
                 
                 #Companion file
-                write_subset_stats_chrx(prefix_companions, rec, subset_male,vf,passing_d_male,passing_d_female,failing_d_male,failing_d_female,missing,gt_failed,clean_d,sum_clean,maf,depth_sum,ab_het,mend_pairs, mend_errors, scores, vtype) 
+                write_subset_stats_chrx(prefix_companions, rec, subset_male,vf,passing_d_male,passing_d_female,failing_d_male,failing_d_female,missing,gt_failed,clean_d,sum_clean,maf,depth_sum,ab_het,mend_pairs, mend_errors, vtype) 
             
             find_s_d_chrx(clean_d, rec.samples)
 
@@ -1042,7 +1042,7 @@ def main():
 
                 for subset, sm_list in samplesDict.items():
                     # calc stats
-                    [vf, abhet, passing, failing, missing, gt_failed, depth_sum, clean_obs, subg, subg_cntl] = calcVA(
+                    [vf, abhet, passing, failing, missing, gt_failed, depth_sum, clean_obs] = calcVA(
                         sm_list['dict'],
                         {'filter': rec.filter, 'ref': rec.ref, 'alt': rec.alts,
                          'chr': rec.contig, 'pos': rec.pos
@@ -1055,7 +1055,7 @@ def main():
                     # MI
                     mend_pairs, mend_errors = check_mendelian_errors(prefix_mi, rec)
                     # pHWE per subgroup
-                    scores = calculate_subgroup_scores(subset, subg, subg_cntl)
+                    #scores = calculate_subgroup_scores(subset, subg, subg_cntl)
 
                     # Companion file
                     have_target = 0
@@ -1063,7 +1063,7 @@ def main():
                        have_target = samplesDict[subset]['have_target']
                     write_subset_stats(prefix_companions, subset, rec, vf, abhet,
                                        passing, failing, missing, gt_failed, depth_sum, clean_obs,
-                                       mend_pairs, mend_errors, scores, vtype,
+                                       mend_pairs, mend_errors, vtype,
                                        isWES, have_target
                                       )
           
