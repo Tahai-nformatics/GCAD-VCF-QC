@@ -131,7 +131,6 @@ def extract_subsets_chrx(fam):
     return male_samples, female_samples
 
 
-
 def write_subset_stats_multiallelic(prefix, rec, subset,maf, vf, passing_d,failing_d, missing,gt_failed,clean_passing_d,sum_clean,depth_sum,ab_het,mend_pairs,mend_errors,VTYPE):
 
     """
@@ -156,11 +155,12 @@ def write_subset_stats_multiallelic(prefix, rec, subset,maf, vf, passing_d,faili
                       'Missing', 'GT_Failed',
                       'Clean00', 'Clean01','Clean11',
                       'Mono','CallRate','CallBad','GATKPass',
-                      'AF', 'MeanDepth', 'HiDepth', 'ABHet',
+                      'AltAF', 'MeanDepth', 'HiDepth', 'ABHet',
                       'Mend_Incon','Mend_pairs','propMI',
-                      'VFLAGS', 'rsID', 'RefAllele', 'AltAllele',
+                      'MultiAllele','FilteredOut','VFLAGS', 'rsID', 'RefAllele', 'AltAllele',
                       'QUAL','FILTER','VTYPE',
                      ]
+
         #fieldnames.extend(scores.keys())
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames , delimiter='\t', lineterminator='\n')
         
@@ -183,10 +183,11 @@ def write_subset_stats_multiallelic(prefix, rec, subset,maf, vf, passing_d,faili
             'Mono': int(3 in vf),
             'CallRate':"{0:.6f}".format(callrate), 'CallBad':int(callrate < (1 - cfg.miss_rate)),
             'GATKPass': int(1 not in vf),
-            'AF': ",".join(str(x) for x in maf),
+            'AltAF': ",".join(str(x) for x in maf[1:]),
             'MeanDepth':"{0:.6f}".format(mean_depth), 'HiDepth':int(mean_depth > cfg.max_dp),
             'ABHet':",".join(str(x) for x in ab_het[1:]) if len(ab_het) > 1 else ".",
             'Mend_Incon':mend_errors, 'Mend_pairs':mend_pairs,'propMI': "{0:.6f}".format(mend_errors / mend_pairs if mend_pairs >0 else -1),
+            'MultiAllele': 1, 'FilteredOut': int(0 not in vf),
             'VFLAGS': ",".join(str(x) for x in vf),
             'rsID': rec.id if rec.id else '.',
             'RefAllele': rec.ref,
@@ -210,7 +211,7 @@ def write_subset_stats(prefix, subset, rec, vf, abhet, passing, failing, missing
                       'Pass00','Pass01','Pass11',
                       'Fail00','Fail01','Fail11',
                       'Missing','GT_Failed',
-                      'Clean00','Clean01','Clean11','Mono','CallRate','CallBad','GATKPass','MAF','AltAF',
+                      'Clean00','Clean01','Clean11','Mono','CallRate','CallBad','GATKPass','AltAF',
                       'MeanDepth','HiDepth','ABHet','Mend_Incon','Mend_pairs','propMI','MultiAllele','FilteredOut',
                       'VFLAGS','rsID','RefAllele','AltAllele','QUAL','FILTER','VTYPE',
                       ]
@@ -241,8 +242,8 @@ def write_subset_stats(prefix, subset, rec, vf, abhet, passing, failing, missing
         if temp > 0:
             maf = (clean_obs[1] + 2 * clean_obs[2]) / temp
             alt_maf = maf
-            if maf > 0.5:
-                maf = 1 - maf
+            #if maf > 0.5:
+            #    maf = 1 - maf
 
         maf = "{0:.6f}".format(maf)
 
@@ -263,7 +264,8 @@ def write_subset_stats(prefix, subset, rec, vf, abhet, passing, failing, missing
             'CallRate':"{0:.6f}".format(callrate),
             'CallBad': int(callrate < (1 - cfg.miss_rate)),
             'GATKPass':int(1 not in vf),
-            'MAF':maf,'AltAF':"{0:.6f}".format(alt_maf),
+            'AltAF':maf,
+            #'AltAF':"{0:.6f}".format(alt_maf),
             'MeanDepth':"{0:.6f}".format(mean_depth),'HiDepth':int(mean_depth > cfg.max_dp),
             'ABHet':abhet,
             'Mend_Incon':mend_errors, 'Mend_pairs':mend_pairs, 'propMI': "{0:.6f}".format(mend_errors / mend_pairs if mend_pairs >0 else 0),
@@ -380,7 +382,7 @@ def write_mendelian_errors(prefix, rec, fam_info, genos ): # mmmm, genos
 def write_indiv_summary_multiallelic(prefix, isWES):
     """
     """
-    outfile = '{}.tsv'.format(prefix)
+    outfile = '{}.multiallelic.tsv'.format(prefix)
 
     with open(outfile, 'w') as csvfile:
         fieldnames = ['SampleID','SEX', 'Pass', 'Fail','Missing', 'Set_Missing','HetHom', 'IndDepthSum', 'IndMeanDepth']
@@ -392,11 +394,11 @@ def write_indiv_summary_multiallelic(prefix, isWES):
 
         writer.writeheader()
 
-        abc_order = OrderedDict(sorted(mi.sa.sa_collection.items()))
+        abc_order = OrderedDict(sorted(mi.sa.sa_collection_multiallelic.items()))
         for indiv, val in abc_order.items():
             het_hom = val.tallySA['passing_obs_het']/val.tallySA['passing_obs_homo2'] if val.tallySA['passing_obs_homo2'] else 0
             # mean_depth
-            good_gt = val.tallySA[(0,0)] + val.tallySA['passing_obs_het'] + val.tallySA['passing_obs_homo2']
+            good_gt = val.tallySA['passing_obs_homo1'] + val.tallySA['passing_obs_het'] + val.tallySA['passing_obs_homo2']
             all_gt = good_gt + val.tallySA[-9]
             mean_depth = val.dp_total / all_gt if all_gt else 0
             row = {'SampleID': indiv, 'SEX': val.details_dict.SEX,
@@ -421,7 +423,7 @@ def write_indiv_summary_multiallelic(prefix, isWES):
 def write_indiv_summary(prefix, isWES):
     """
     """
-    outfile = '{}.tsv'.format(prefix)
+    outfile = '{}.biallelic.tsv'.format(prefix)
 
     with open(outfile, 'w') as csvfile:
         fieldnames = ['SampleID','SEX',
@@ -553,7 +555,6 @@ def delete_previous_outputs(out_dir, prefix, subsets):
     return
 
 
-
 def vcf_output_create_biallelic(rec, subset, clean_obs, vf, abhet, vtype, vcf_out):
     sum_clean = sum(clean_obs)
     maf = 0
@@ -570,29 +571,34 @@ def vcf_output_create_biallelic(rec, subset, clean_obs, vf, abhet, vtype, vcf_ou
         maf = "{0:.6f}".format(maf)
 
     #Append Allele Number to INFO field
+    print(f'wrote biallelic AN')
     rec.info["AN"] = sum_clean
     
 
     #Append Allele Counts to INFO field
+    print(f'wrote biallelic AC')
     rec.info['AC'] = alt_allele_counts
     #print(rec.info['AC'])
 
     #Append Allele Frequency to INFO field
     #rec.info['AF'] = tuple(float(maf[key]) for key in alt_allele_counts.keys())
+    print(f'wrote biallelic AF')
     rec.info['AF'] = float(alt_maf)
 
     #Append VFLAGS to INFO field
+    print(f'writing VFLAGS')
     rec.info[ "VFLAGS_" + subset ] = vf
     #Append subset ABHet to INFO field
+    print(f'writing abhet')
+    print(abhet)
     rec.info[ "ABHet_" + subset ] = [str(num) for num in abhet]
 
     #Append VariantType to INFO field 
+    print(f'writing variant type')
     rec.info[ "VariantType" ] = vtype
 
     #Write to VCF File
     vcf_out.write(rec)
-
-
 
 
 def vcf_output_create_multiallelic(rec, subset, clean_d, maf, vf, ab_het, vtype, vcf_out):
@@ -610,11 +616,11 @@ def vcf_output_create_multiallelic(rec, subset, clean_d, maf, vf, ab_het, vtype,
                         alt_allele_counts[allele] += (clean_d[GT_type][key] *2)
 
     #Append Allele Number to INFO field
-    rec.info["AN"] = total_sum
 
+    rec.info["AN"] = total_sum
     #Append Allele Counts to INFO field
+
     rec.info['AC'] = tuple(alt_allele_counts[key] for key in alt_allele_counts.keys())
-    
     #Append Allele Frequency to INFO field
     rec.info['AF'] = tuple(float(maf[key]) for key in alt_allele_counts.keys())
 
@@ -623,11 +629,12 @@ def vcf_output_create_multiallelic(rec, subset, clean_d, maf, vf, ab_het, vtype,
 
     #Append subset ABHet to INFO field
     rec.info["ABHet_" + subset] = ab_het[0] if len(ab_het) == 1 else ",".join(map(str, ab_het[1:]))
-
+    
     #Append VariantType to INFO field 
     rec.info[ "VariantType" ] = vtype
     #Write to VCF File
     vcf_out.write(rec)
+
 
 def vcf_output_create_chrX(rec, subset, passing_d, maf, vf, ab_het, vtype, vcf_out, chrx_is_multiallelic):
     alt_allele_counts = {i: 0 for i in range(1,len(rec.alts)+1)}
@@ -817,13 +824,8 @@ def main():
 
     for k in samplesDict.keys():
         vcf_out_hdr.add_meta('INFO', items=[('ID', 'VFLAGS_' + k), ('Number','.'), ('Type', 'Integer'), ('Description','Pipeline-specific QC variant flags')])
-        if args.is_multiallelic or args.is_chrx:
-            vcf_out_hdr.add_meta('INFO', items=[('ID', 'ABHet_' + k), ('Number','.'), ('Type', 'String'), ('Description','Allelic Read Ratio')])
-        else: #Biallelic
-            vcf_out_hdr.add_meta('INFO', items=[('ID', 'ABHet_' + k), ('Number','1'), ('Type', 'Float'), ('Description','Allelic Read Ratio')])
+        vcf_out_hdr.add_meta('INFO', items=[('ID', 'ABHet_' + k), ('Number','.'), ('Type', 'String'), ('Description','Allelic Read Ratio')])
 
-
-            
     if isWES:
         vcf_out_hdr.add_meta('INFO', items=[('ID', 'VariantInTargetFraction'), ('Number','.'), ('Type', 'String'), ('Description','Fraction of the variant\'s presence in given target regions')])
         vcf_out_hdr.add_meta('INFO', items=[('ID', 'VariantInTargetRatio'), ('Number',1), ('Type', 'Float'), ('Description','Ratio of the variant\'s presence in given target regions')])
@@ -856,79 +858,167 @@ def main():
 
     delete_previous_outputs(args.out_dir, 'summary.snv' + regionStr, list(samplesDict.keys()))
 
-    variant_ct = 0
+    variant_ct_biallelic = 0
+    variant_ct_multiallelic = 0
     start_p = time.time()
     
+
     ## Run analysis on Multiallelic chromosome ##
-    if args.is_multiallelic:
-        if not args.is_chrx:
-            for rec in vcf_in.fetch(rChr, rStart, rEnd):
-                if rStart is None or (rStart <= rec.pos <= rEnd): #If the current position is within --region OR if no region given:
-                #Calculate Vtype
-                    alts_vtype = []
-                    for alts in rec.alts:
-                        ct = 0
-                        if alts != "*":
-                            if len(rec.ref) != len(alts):
-                                vtype='INDEL'
-                                alts_vtype.append(vtype)
-                                continue
-                            for i in range(len(rec.ref)):   # IF length of ref and alt is same...
-                                if rec.ref[i] != alts[i]:   #If there is mismatch in BP
-                                    vtype='SNP'
-                                    ct +=1           #
-                            if ct >1:
-                                vtype='INDEL'
-                                alts_vtype.append(vtype)
-                            elif ct == 1:
-                                VTYPE='SNP'
-                                alts_vtype.append(vtype)
+    for rec in vcf_in.fetch(rChr, rStart, rEnd):
+        if len(rec.alts) >1:
+            if rStart is None or (rStart <= rec.pos <= rEnd): #
+                alts_vtype = []
+                for alts in rec.alts:
+                    ct = 0
+                    if alts != "*":
+                        if len(rec.ref) != len(alts):
+                            vtype='INDEL'
+                            alts_vtype.append(vtype)
+                            continue
+                        for i in range(len(rec.ref)):   # IF length of ref and alt is same...
+                            if rec.ref[i] != alts[i]:   #If there is mismatch in BP
+                                vtype='SNP'
+                                ct +=1           #
+                        if ct >1:
+                            vtype='INDEL'
+                            alts_vtype.append(vtype)
+                        elif ct == 1:
+                            VTYPE='SNP'
+                            alts_vtype.append(vtype)
 
-                    if ( 'SNP' in alts_vtype ) and ( 'INDEL' in alts_vtype ):
-                        vtype='MULTI_MIX'
-                    elif 'SNP' in alts_vtype:
-                        vtype='MULTI_SNP'
-                    elif 'INDEL' in alts_vtype:
-                        vtype='MULTI_INDEL'
-                    else:
-                        raise "VTYPE error" 
-                    samplesDict = gather_intersect_fam_vcf_samples(rec.samples, samplesDict)
-                    for subset, sm_list in samplesDict.items():
-                        rec_details = {'filter': rec.filter, 'ref': rec.ref, 'alt': rec.alts,
-                                                 'chr': rec.contig, 'pos': rec.pos}
-                        #Calculate stats
-                        [vf,maf,passing_d,failing_d,missing,gt_failed,clean_passing_d,sum_clean,depth_sum,ab_het] = calcVA_multiallelic(sm_list['dict'],rec_details,subset)
-                        #MI
-                        mend_pairs, mend_errors = check_mendelian_errors_multiallelic(prefix_mi, rec)
-                        
-                        #pHWE per subgroup
-                        #scores = calculate_subgroup_scores_multiallelic(subset, subg, subg_c,allele_count_dict,zhet_sample_counts)
-                        
-                        #Companion file
-                        write_subset_stats_multiallelic(prefix_companions, rec, subset, maf ,vf,passing_d,failing_d,missing,gt_failed,clean_passing_d,sum_clean,depth_sum,ab_het,mend_pairs,mend_errors,vtype)
-                        
+                if ( 'SNP' in alts_vtype ) and ( 'INDEL' in alts_vtype ):
+                    vtype='MULTI_MIX'
+                elif 'SNP' in alts_vtype:
+                    vtype='MULTI_SNP'
+                elif 'INDEL' in alts_vtype:
+                    vtype='MULTI_INDEL'
+                else:
+                    raise "VTYPE error" 
+                samplesDict = gather_intersect_fam_vcf_samples(rec.samples, samplesDict)
 
-                    find_s_d_multiallelic(clean_passing_d,rec.samples)
-                    if args.no_output_vcf == False:
-                        #Append to INFO field headers and write to VCF file
-                        vcf_output_create_multiallelic(rec, subset, clean_passing_d, maf, vf, ab_het, vtype, vcf_out)
+                for subset, sm_list in samplesDict.items():
+                    rec_details = {'filter': rec.filter, 'ref': rec.ref, 'alt': rec.alts,
+                                                'chr': rec.contig, 'pos': rec.pos}
+                #Calculate stats
+                    [vf,maf,passing_d,failing_d,missing,gt_failed,clean_passing_d,sum_clean,depth_sum,ab_het] = calcVA_multiallelic(sm_list['dict'],rec_details,subset)
+                    #MI
+                    mend_pairs, mend_errors = check_mendelian_errors_multiallelic(prefix_mi, rec)
+                    #pHWE per subgroup
+                    #scores = calculate_subgroup_scores_multiallelic(subset, subg, subg_c,allele_count_dict,zhet_sample_counts)
+                    
+                    #Companion file
+                    #
+                    write_subset_stats_multiallelic(prefix_companions, rec, subset, maf ,vf,passing_d,failing_d,missing,gt_failed,clean_passing_d,sum_clean,depth_sum,ab_het,mend_pairs,mend_errors,vtype)
+
+                find_s_d_multiallelic(clean_passing_d,rec.samples)
+
+                if args.no_output_vcf == False:
+                    #Append to INFO field headers and write to VCF file
+                    vcf_output_create_multiallelic(rec, subset, clean_passing_d, maf, vf, ab_het, vtype, vcf_out)
+
+                variant_ct_multiallelic += 1
+
+        else:
+            if rStart is None or (rStart <= rec.pos <= rEnd): #If the current position is within --region OR if no region given:
+            # Variant Type: SNV, insertion, deletion
+                vtype = "SNV"
+                if len(rec.ref) > 1:
+                    vtype = "Deletion"
+                elif len(rec.alts[0]) > 1:
+                    vtype = "Insertion"
                 
-                    variant_ct += 1
-            if args.no_output_vcf == False:
-                vcf_out.close()
-            
-            end = time.time()
-            print("total_time:{0:.2f}".format(end - start))
-            print("process_time:{0:.2f}".format(end - start_p))
-            print("total_processed:{}".format(variant_ct))
-            if variant_ct > 0:
-                print("rate:{0:.2f}".format(variant_ct/(end - start_p)))
-            write_indiv_summary_multiallelic(prefix_indiv, isWES)
-        if args.no_output_vcf == False:
-        # create index
-            time.sleep(1)
-            check_output(["tabix", "-f", vcf_out_filename])
+                samplesDict = gather_intersect_fam_vcf_samples(rec.samples, samplesDict)
+                grp_obs = list()
+                vflag_11_ct = 0
+                for subset, sm_list in samplesDict.items(): 
+                    # calc stats
+                    [vf, abhet, passing, failing, missing, gt_failed, depth_sum, clean_obs] = calcVA(
+                        sm_list['dict'],
+                        {'filter': rec.filter, 'ref': rec.ref, 'alt': rec.alts,
+                        'chr': rec.contig, 'pos': rec.pos
+                        },
+                        subset,
+                    )
 
+                    grp_obs.append(clean_obs)
+
+                    # MI
+                    mend_pairs, mend_errors = check_mendelian_errors(prefix_mi, rec)
+                    # pHWE per subgroup
+                    #scores = calculate_subgroup_scores(subset, subg, subg_cntl)
+
+                    # Companion file
+                    have_target = 0
+                    if isWES:
+                        have_target = samplesDict[subset]['have_target']
+                    write_subset_stats(prefix_companions, subset, rec, vf, abhet,
+                                    passing, failing, missing, gt_failed, depth_sum, clean_obs,
+                                    mend_pairs, mend_errors, vtype,
+                                    isWES, have_target
+                                    )
+        
+                    #vcf_output_create_biallelic(rec, subset, clean_obs, vf, abhet, vtype, vcf_out)
+                    
+                    #Append Allele Number to INFO field
+                    rec.info["AN"] =  2 * sum(clean_obs)
+                    
+                    #Append Allele Counts to INFO field
+                    rec.info['AC'] = 2*clean_obs[2] + clean_obs[1]
+
+                    #Append Allele Frequency to INFO field
+                    rec.info['AF'] = float((clean_obs[1] + (2 * clean_obs[2]))/ (2 * sum(clean_obs)))  if sum(clean_obs) > 0 else 0
+
+                    # Append subset VFLAGS to INFO field
+                    rec.info[ "VFLAGS_" + subset ] = vf
+
+                    # Append subset ABHet to INFO field
+                    rec.info[ "ABHet_" + subset ] = str(abhet) if abhet != 'NA' else None
+
+                    # Append VariantType
+                    rec.info[ "VariantType" ] = vtype
+
+
+                    # count number of vflag(11) for VariantInTargetRatio
+                    if have_target:
+                        #vflag_11_ct += (11 not in vf)
+                        if (11 not in vf):
+                        #vflag_11_ct += sum( mi.sa.subsets[subset].values())
+                            vflag_11_ct += missing + gt_failed + sum(clean_obs)
+
+                # Append VariantInTargetRatio
+                if isWES:
+                    rec.info[ "VariantInTargetFraction" ] = str(vflag_11_ct) + '/' + str(set_size)
+                    rec.info[ "VariantInTargetRatio" ] = vflag_11_ct / set_size
+
+                # sum obs by column
+                total_obs = list(map(sum, zip(*grp_obs)))
+                #print('finding s_d')
+                find_s_d(total_obs, rec.samples)
+
+            if args.no_output_vcf == False:
+                vcf_out.write(rec)
+
+                variant_ct_biallelic += 1
+
+    if args.no_output_vcf == False: vcf_out.close()
+    if variant_ct_biallelic:
+        write_indiv_summary(prefix_indiv, isWES)
+    if variant_ct_multiallelic:
+        write_indiv_summary_multiallelic(prefix_indiv, isWES)
+    end = time.time()
+    print("total_time:{0:.2f}".format(end - start))
+    print("process_time:{0:.2f}".format(end - start_p))
+    print("total_processed:{}".format(variant_ct_biallelic + variant_ct_multiallelic))
+    if variant_ct_biallelic > 0 or variant_ct_multiallelic > 0:
+        print("biallelic rate:{0:.2f}".format(variant_ct_biallelic/(end - start_p)))
+        print("multiallelic rate:{0:.2f}".format(variant_ct_multiallelic/(end - start_p)))
+    
+    if args.no_output_vcf == False:
+        # create index
+        time.sleep(1)
+        check_output(["tabix", "-f", vcf_out_filename])
+
+"""
     ## Run analysis on ChrX (Biallelic/Multiallelic) chromosome ##
     if args.is_chrx:
         samplesDict_male,samplesDict_female = extract_subsets_chrx(args.fam)
@@ -984,7 +1074,7 @@ def main():
                 rec_details= {'filter': rec.filter, 'ref': rec.ref, 'alt': rec.alts,
                      'chr': rec.contig, 'pos': rec.pos}
                 #Calculate stats
-                [vf,passing_d_male,passing_d_female,failing_d_male,failing_d_female,missing,gt_failed,clean_d,sum_clean,maf,depth_sum, ab_het] = calcVA_chrx(sm_list_male['dict'],sm_list_female['dict'],rec_details,subset_male,subset_female)
+                [vf,passing_d_male,passing_d_female,failing_d_male,failing_d_female,missing,gt_failed,clean_d,sum_clean,maf,depth_sum, ab_het,subg_male,subg_female,subg_c_male,subg_c_female,zhet_dict,zhet_sample_counts] = calcVA_chrx(sm_list_male['dict'],sm_list_female['dict'],rec_details,subset_male,subset_female)
                 #MI 
                 mend_pairs, mend_errors = check_mendelian_errors_chrx(prefix_mi, rec)
                 
@@ -1019,113 +1109,7 @@ def main():
         # create index
             time.sleep(1)
             check_output(["tabix", "-f", vcf_out_filename])
-    
-    ## Run analysis on Biallelic Chromosome ##
-    elif not args.is_multiallelic and not args.is_chrx: 
-        # loop over each variant in VCF
-        for rec in vcf_in.fetch(rChr, rStart, rEnd):
-            if len(rec.alts) > 1:
-            #print("Warning found multiallelic variant")
-                continue
-            if rStart is None or (rStart <= rec.pos <= rEnd): #If the current position is within --region OR if no region given:
-            # Variant Type: SNV, MNV, insertion, deletion
-                vtype = "SNV"
-                if len(rec.ref) > 1:
-                    vtype = "Deletion"
-                elif len(rec.alts[0]) > 1:
-                    vtype = "Insertion"
-
-                #
-                samplesDict = gather_intersect_fam_vcf_samples(rec.samples, samplesDict)
-                grp_obs = list()
-                vflag_11_ct = 0
-
-                for subset, sm_list in samplesDict.items():
-                    # calc stats
-                    [vf, abhet, passing, failing, missing, gt_failed, depth_sum, clean_obs] = calcVA(
-                        sm_list['dict'],
-                        {'filter': rec.filter, 'ref': rec.ref, 'alt': rec.alts,
-                         'chr': rec.contig, 'pos': rec.pos
-                         },
-                        subset,
-                    )
-
-                    grp_obs.append(clean_obs)
-
-                    # MI
-                    mend_pairs, mend_errors = check_mendelian_errors(prefix_mi, rec)
-                    # pHWE per subgroup
-                    #scores = calculate_subgroup_scores(subset, subg, subg_cntl)
-
-                    # Companion file
-                    have_target = 0
-                    if isWES:
-                       have_target = samplesDict[subset]['have_target']
-                    write_subset_stats(prefix_companions, subset, rec, vf, abhet,
-                                       passing, failing, missing, gt_failed, depth_sum, clean_obs,
-                                       mend_pairs, mend_errors, vtype,
-                                       isWES, have_target
-                                      )
-          
-
-                    #vcf_output_create_biallelic(rec, subset, clean_obs, vf, abhet, vtype, vcf_out)
-                    
-                    #Append Allele Number to INFO field
-                    rec.info["AN"] =  2 * sum(clean_obs)
-                    
-                    #Append Allele Counts to INFO field
-                    rec.info['AC'] = 2*clean_obs[2] + clean_obs[1]
-                    
-                    #Append Allele Frequency to INFO field
-                    rec.info['AF'] = float((clean_obs[1] + (2 * clean_obs[2]))/ (2 * sum(clean_obs)))  if sum(clean_obs) > 0 else 0
-
-                    # Append subset VFLAGS to INFO field
-                    rec.info[ "VFLAGS_" + subset ] = vf
-
-                    # Append subset ABHet to INFO field
-                    rec.info[ "ABHet_" + subset ] = float(abhet) if abhet != 'NA' else None
-
-                    # Append VariantType
-                    rec.info[ "VariantType" ] = vtype
-
-                    # count number of vflag(11) for VariantInTargetRatio
-                    if have_target:
-                       #vflag_11_ct += (11 not in vf)
-                       if (11 not in vf):
-                          #vflag_11_ct += sum( mi.sa.subsets[subset].values())
-                          vflag_11_ct += missing + gt_failed + sum(clean_obs)
-
-                # Append VariantInTargetRatio
-                if isWES:
-                   rec.info[ "VariantInTargetFraction" ] = str(vflag_11_ct) + '/' + str(set_size)
-                   rec.info[ "VariantInTargetRatio" ] = vflag_11_ct / set_size
-
-                # sum obs by column
-                total_obs = list(map(sum, zip(*grp_obs)))
-
-                find_s_d(total_obs, rec.samples)
-
-            if args.no_output_vcf == False:
-                vcf_out.write(rec)
-
-                #print()
-                variant_ct += 1
-
-        if args.no_output_vcf == False: vcf_out.close()
-
-        end = time.time()
-        print("total_time:{0:.2f}".format(end - start))
-        print("process_time:{0:.2f}".format(end - start_p))
-        print("total_processed:{}".format(variant_ct))
-        if variant_ct > 0:
-            print("rate:{0:.2f}".format(variant_ct/(end - start_p)))
-        write_indiv_summary(prefix_indiv, isWES)
-
-        if args.no_output_vcf == False:
-            # create index
-            time.sleep(1)
-            check_output(["tabix", "-f", vcf_out_filename])
-
+"""
 def calculate_subgroup_scores_multiallelic(subset, subg, subg_cntl,allele_count_dict,zhet_sample_counts):
     """ calculate_subgroup_scores - generates nClean, Zhet, and pHWE for subgroups
                                     added to TAGs within the INFO field. pHWE-subgroup has
@@ -1278,26 +1262,26 @@ def find_s_d_multiallelic(clean_passing_d, samples): #het_gts):
         if total_obs_het == 1 and total_obs_homo_alt == 0:
             idv = find_singleton_multiallelic(samples,clean_passing_d['obs_het'].keys())
             if idv:
-                mi.sa.sa_collection[idv].tallySA['singleton'] += 1
+                mi.sa.sa_collection_multiallelic[idv].tallySA['singleton'] += 1
         elif total_obs_homo_alt == 1 and total_obs_het == 0:
             idv = find_private_doubleton_multiallelic(samples,clean_passing_d['obs_homo2'].keys())
-            if idv: mi.sa.sa_collection[idv].tallySA['p_dblton'] +=1
+            if idv: mi.sa.sa_collection_multiallelic[idv].tallySA['p_dblton'] +=1
         elif total_obs_het == 2 and total_obs_homo_alt == 0:
             dbltons = find_doubletons_multiallelic(samples, clean_passing_d['obs_het'].keys())
             for idv in dbltons:
-                mi.sa.sa_collection[idv].tallySA['doubleton'] +=1
+                mi.sa.sa_collection_multiallelic[idv].tallySA['doubleton'] +=1
     else:
         if total_obs_het == 1 and total_obs_homo_ref == 0:
             idv = find_singleton_multiallelic(samples, clean_passing_d['obs_het'].keys())
             if idv:
-                mi.sa.sa_collection[idv].tallySA['singleton'] += 1
+                mi.sa.sa_collection_multiallelic[idv].tallySA['singleton'] += 1
         elif total_obs_homo_ref == 1 and total_obs_het == 0:
             idv = find_private_doubleton_multiallelic(samples, clean_passing_d['obs_homo1'].keys())
-            if idv: mi.sa.sa_collection[idv].tallySA['p_dblton'] += 1
+            if idv: mi.sa.sa_collection_multiallelic[idv].tallySA['p_dblton'] += 1
         elif total_obs_het == 2 and total_obs_homo_ref == 0:
             dbltons = find_doubletons_multiallelic(samples,clean_passing_d['obs_het'].keys())
             for idv in dbltons:
-                mi.sa.sa_collection[idv].tallySA['doubleton'] += 1
+                mi.sa.sa_collection_multiallelic[idv].tallySA['doubleton'] += 1
 
 
 def find_s_d(total_obs, samples):
@@ -1782,3 +1766,4 @@ def check_mendelian_errors_chrx(prefix, rec):
 if __name__ == "__main__":
     main()
     # cProfile.run('main()', None, 'tottime')
+

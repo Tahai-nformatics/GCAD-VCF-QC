@@ -27,11 +27,36 @@ class Sample:
         AFF: 0 = unknown; 1 = unaffected (controls); 2 = affected (cases)
         """
         return (self.details_dict.AFF == '1')
+    
+class Sample_multiallelic:
+    def __init__(self, details_dict):
+        self.details_dict = details_dict
+        self.has_father = False
+        self.has_mother = False
+
+    def set_has_father(self):
+        self.has_father = True
+
+    def set_has_mother(self):
+        self.has_mother = True
+
+    def get_subset(self):
+        return self.details_dict.Subset
+
+    def get_subgroup(self):
+        return self.details_dict.Subgroup
+
+    def is_control(self):
+        """
+        AFF: 0 = unknown; 1 = unaffected (controls); 2 = affected (cases)
+        """
+        return (self.details_dict.AFF == '1')
 class SampleAnnotation:
     """
     """
     def __init__(self):
         self.sa_collection = dict()
+        self.sa_collection_multiallelic = dict()
         self.id_list = set()
         self.subject_list = set()
         #self.good_gt = set()
@@ -44,17 +69,31 @@ class SampleAnnotation:
         self.target_files = set()
         self.subdivide_by_targets = False
 
-    def add_family_sample(self, sample):
+    def add_family_sample(self, sample, sample_multiallelic):
         if sample.details_dict.FA in self.id_list:
             sample.set_has_father()
+            sample_multiallelic.set_has_father()
 
         if sample.details_dict.MO in self.id_list:
             sample.set_has_mother()
+            sample_multiallelic.set_has_mother()
 
-        self.sa_collection[sample.details_dict.SampID] = sample # has namedtuple(details_dict)
 
+        # Create a new Sample_multiallelic instance for sa_collection_multiallelic
+        self.sa_collection[sample.details_dict.SampID] = sample  # has namedtuple(details_dict)
+        self.sa_collection_multiallelic[sample.details_dict.SampID] = sample_multiallelic
+    
         # tally
         self.sa_collection[sample.details_dict.SampID].tallySA = dict.fromkeys([-9, (None,None), (0,0),(0,1),(0,2),(0,3),(0,4),(0,5),(0,6),(0,7),(0,8),(0,9),(0,10),(0,11),(0,12),(0,13),(0,14),(0,15),(0,16),(1,0),(1,1),(1,2),(1,3),(1,4),(1,5),(1,6),(1,7),(1,8),(1,9),(1,10),(1,11),(1,12),(1,13),(1,14),(1,15),(1,16),(2,0),(2,1),(2,2),(2,3),(2,4),(2,5),(2,6),(2,7),(2,8),(2,9),(2,10),(2,11),(2,12),(2,13),(2,14),(2,15),(2,16),(3,0),(3,1),(3,2),(3,3),(3,4),(3,5),(3,6),(3,7),(3,8),(3,9),(3,10),(3,11),(3,12),(3,13),(3,14),(3,15),(3,16),(4,0),(4,1),(4,2),(4,3),(4,4),(4,5),(4,6),(4,7),(4,8),(4,9),(4,10),(4,11),(4,12),(4,13),(4,14),(4,15),(4,16),(5,0),(5,1),(5,2),(5,3),(5,4),(5,5),(5,6),(5,7),(5,8),(5,9),(5,10),(5,11),(5,12),(5,13),(5,14),(5,15),(5,16),(6,0),(6,1),(6,2),(6,3),(6,4),(6,5),(6,6),(6,7),(6,8),(6,9),(6,10),(6,11),(6,12),(6,13),(6,14),(6,15),(6,16),(7,0),(7,1),(7,2),(7,3),(7,4),(7,5),(7,6),(7,7),(7,8),(7,9),(7,10),(7,11),(7,12),(7,13),(7,14),(7,15),(7,16),(8,0),(8,1),(8,2),(8,3),(8,4),(8,5),(8,6),(8,7),(8,8),(8,9),(8,10),(8,11),(8,12),(8,13),(8,14),(8,15),(8,16),(9,0),(9,1),(9,2),(9,3),(9,4),(9,5),(9,6),(9,7),(9,8),(9,9),(9,10),(9,11),(9,12),(9,13),(9,14),(9,15),(9,16),(10,0),(10,1),(10,2),(10,3),(10,4),(10,5),(10,6),(10,7),(10,8),(10,9),(10,10),(10,11),(10,12),(10,13),(10,14),(10,15),(10,16),(11,0),(11,1),(11,2),(11,3),(11,4),(11,5),(11,6),(11,7),(11,8),(11,9),(11,10),(11,11),(11,12),(11,13),(11,14),(11,15),(11,16),(12,0),(12,1),(12,2),(12,3),(12,4),(12,5),(12,6),(12,7),(12,8),(12,9),(12,10),(12,11),(12,12),(12,13),(12,14),(12,15),(12,16),(13,0),(13,1),(13,2),(13,3),(13,4),(13,5),(13,6),(13,7),(13,8),(13,9),(13,10),(13,11),(13,12),(13,13),(13,14),(13,15),(13,16),(14,0),(14,1),(14,2),(14,3),(14,4),(14,5),(14,6),(14,7),(14,8),(14,9),(14,10),(14,11),(14,12),(14,13),(14,14),(14,15),(14,16),(15,0),(15,1),(15,2),(15,3),(15,4),(15,5),(15,6),(15,7),(15,8),(15,9),(15,10),(15,11),(15,12),(15,13),(15,14),(15,15),(15,16),(16,0),(16,1),(16,2),(16,3),(16,4),(16,5),(16,6),(16,7),(16,8),(16,9),(16,10),(16,11),(16,12),(16,13),(16,14),(16,15),(16,16),
+                                                                                'mend_pair','vp1','vp2',
+                                                                                'ti', 'tv', 'non_missing_indel',
+                                                                                'ti_wes', 'tv_wes',
+                                                                                'singleton', 'p_dblton', 'doubleton',
+                                                                                'failing_obs_homo1','failing_obs_het','failing_obs_homo2',
+                                                                                'passing_obs_homo1','passing_obs_het','passing_obs_homo2',
+                                                                                'missing'],0)
+        
+        self.sa_collection_multiallelic[sample.details_dict.SampID].tallySA = dict.fromkeys([-9, (None,None), (0,0),(0,1),(0,2),(0,3),(0,4),(0,5),(0,6),(0,7),(0,8),(0,9),(0,10),(0,11),(0,12),(0,13),(0,14),(0,15),(0,16),(1,0),(1,1),(1,2),(1,3),(1,4),(1,5),(1,6),(1,7),(1,8),(1,9),(1,10),(1,11),(1,12),(1,13),(1,14),(1,15),(1,16),(2,0),(2,1),(2,2),(2,3),(2,4),(2,5),(2,6),(2,7),(2,8),(2,9),(2,10),(2,11),(2,12),(2,13),(2,14),(2,15),(2,16),(3,0),(3,1),(3,2),(3,3),(3,4),(3,5),(3,6),(3,7),(3,8),(3,9),(3,10),(3,11),(3,12),(3,13),(3,14),(3,15),(3,16),(4,0),(4,1),(4,2),(4,3),(4,4),(4,5),(4,6),(4,7),(4,8),(4,9),(4,10),(4,11),(4,12),(4,13),(4,14),(4,15),(4,16),(5,0),(5,1),(5,2),(5,3),(5,4),(5,5),(5,6),(5,7),(5,8),(5,9),(5,10),(5,11),(5,12),(5,13),(5,14),(5,15),(5,16),(6,0),(6,1),(6,2),(6,3),(6,4),(6,5),(6,6),(6,7),(6,8),(6,9),(6,10),(6,11),(6,12),(6,13),(6,14),(6,15),(6,16),(7,0),(7,1),(7,2),(7,3),(7,4),(7,5),(7,6),(7,7),(7,8),(7,9),(7,10),(7,11),(7,12),(7,13),(7,14),(7,15),(7,16),(8,0),(8,1),(8,2),(8,3),(8,4),(8,5),(8,6),(8,7),(8,8),(8,9),(8,10),(8,11),(8,12),(8,13),(8,14),(8,15),(8,16),(9,0),(9,1),(9,2),(9,3),(9,4),(9,5),(9,6),(9,7),(9,8),(9,9),(9,10),(9,11),(9,12),(9,13),(9,14),(9,15),(9,16),(10,0),(10,1),(10,2),(10,3),(10,4),(10,5),(10,6),(10,7),(10,8),(10,9),(10,10),(10,11),(10,12),(10,13),(10,14),(10,15),(10,16),(11,0),(11,1),(11,2),(11,3),(11,4),(11,5),(11,6),(11,7),(11,8),(11,9),(11,10),(11,11),(11,12),(11,13),(11,14),(11,15),(11,16),(12,0),(12,1),(12,2),(12,3),(12,4),(12,5),(12,6),(12,7),(12,8),(12,9),(12,10),(12,11),(12,12),(12,13),(12,14),(12,15),(12,16),(13,0),(13,1),(13,2),(13,3),(13,4),(13,5),(13,6),(13,7),(13,8),(13,9),(13,10),(13,11),(13,12),(13,13),(13,14),(13,15),(13,16),(14,0),(14,1),(14,2),(14,3),(14,4),(14,5),(14,6),(14,7),(14,8),(14,9),(14,10),(14,11),(14,12),(14,13),(14,14),(14,15),(14,16),(15,0),(15,1),(15,2),(15,3),(15,4),(15,5),(15,6),(15,7),(15,8),(15,9),(15,10),(15,11),(15,12),(15,13),(15,14),(15,15),(15,16),(16,0),(16,1),(16,2),(16,3),(16,4),(16,5),(16,6),(16,7),(16,8),(16,9),(16,10),(16,11),(16,12),(16,13),(16,14),(16,15),(16,16),
                                                                                 'mend_pair','vp1','vp2',
                                                                                 'ti', 'tv', 'non_missing_indel',
                                                                                 'ti_wes', 'tv_wes',
@@ -65,15 +104,20 @@ class SampleAnnotation:
 
 
 
+
         # DP store
         self.sa_collection[sample.details_dict.SampID].dp_total = 0
-
+        self.sa_collection_multiallelic[sample.details_dict.SampID].dp_total = 0
         # store the subsets-subgroups
+
+        # Store subsets and subgroups
+        self.subsets[sample.get_subset()][sample.get_subgroup()] += 1
+        self.subgroups.add(sample.get_subgroup())
 #        self.subsets[ sample.get_subset() ].add(sample.get_subgroup())
-        self.subsets[ sample.get_subset() ][ sample.get_subgroup() ] += 1
+        #self.subsets[ sample.get_subset() ][ sample.get_subgroup() ] += 1
 
         # store the subgroups
-        self.subgroups.add( sample.get_subgroup() )
+        #self.subgroups.add( sample.get_subgroup() )
 
         return
 
@@ -114,14 +158,30 @@ class SampleAnnotation:
             if vsm['DP'] != None:
                  self.add_dp(indiv_id, vsm['DP'])
             return
-        elif failed == -1 :
+        elif failed == -1:
+            #if b_or_m == "biallelic":
             # good (passing) genotypes
             self.save_good_kid(indiv_id)
             self.add_dp(indiv_id, vsm['DP'])
 
+
         # tally missing and good genotypes
         self.sa_collection[indiv_id].tallySA[ vsm['GT'] ] += 1
-
+    """
+    def tally_multiallelic(self, indiv_id, vsm, failed):
+        if failed == 1:
+            self.sa_collection_multiallelic[indiv_id].tallySA[ -9 ] += 1
+            if vsm['DP'] != None:
+                 self.add_dp_multiallelic(indiv_id, vsm['DP'])
+            return
+        elif failed == -1:
+            #if b_or_m == "biallelic":
+            # good (passing) genotypes
+            self.save_good_kid(indiv_id)
+            self.add_dp_multiallelic(indiv_id, vsm['DP'])
+        # tally missing and good genotypes
+        self.sa_collection_multiallelic[indiv_id].tallySA[ vsm['GT'] ] += 1
+    """
     def tallyIndel(self, ref, alt): #non_missing_indel
         if ref==alt: return
         if len(alt) > 1 or len(ref) > 1:
@@ -154,7 +214,8 @@ class SampleAnnotation:
 
     def add_dp(self,indiv_id, dp):
         self.sa_collection[indiv_id].dp_total += dp
-
+    def add_dp_multiallelic(self,indiv_id, dp):
+        self.sa_collection_multiallelic[indiv_id].dp_total += dp
     def add_singleton(self, indiv_id):
         self.singletons.append(indiv_id)
 
@@ -197,7 +258,6 @@ def createSampleAnnotation(fam):
     # Read FAM file once to get all sample names
     with open(fam, 'r') as fam_file:
         for sm in map(SampleFamDetail._make, csv.reader(fam_file, delimiter=delimiter)):
-
             # check values
             sys.tracebacklimit = None
             for s in sm:
@@ -212,7 +272,9 @@ def createSampleAnnotation(fam):
     # Re-read FAM file to add in family links
     with open(fam, 'r') as fam_file:
         for sm in map(SampleFamDetail._make, csv.reader(fam_file, delimiter=delimiter)):
-            sa.add_family_sample( Sample(sm) )
+            sample = Sample(sm)
+            sample_multiallelic = Sample_multiallelic(sm)
+            sa.add_family_sample( Sample(sm), sample_multiallelic )
             #print(Sample(sm))
     # remove samples from within subsets having fewer than 5 individuals
     to_delete = list()
@@ -228,3 +290,4 @@ def createSampleAnnotation(fam):
 
 # Globals
 sa = SampleAnnotation()
+

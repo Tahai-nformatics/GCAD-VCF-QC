@@ -103,7 +103,7 @@ def calcVA(snp_samples, rec_details, subset):
     in_exon = check_inside_exon(rec_details['pos'], rec_details['chr'])
 
     # sample-level qc below. Results are required for remaining vflags
-    [obs_hom1, obs_hets, obs_hom2, missing, gt_failed, depth_sum, failed, het_ad, het_dp] = count_gt(snp_samples, rec_details, in_exon)
+    [obs_hom1, obs_hets, obs_hom2, missing, gt_failed, depth_sum, failed, het_ad, het_dp ] = count_gt(snp_samples, rec_details, in_exon)
     total = obs_hom1 + obs_hets + obs_hom2 + missing + gt_failed
     non_missing = obs_hom1 + obs_hets + obs_hom2
     total_genotypes = non_missing + gt_failed
@@ -178,7 +178,7 @@ def calcVA(snp_samples, rec_details, subset):
     if het_dp > 0:
         ab_het = "{0:.4f}".format(het_ad / het_dp)
     else:
-        ab_het = 'NA'
+        ab_het = '.'
 
     return [vf, ab_het, pass_cnt, fail_cnt, missing, gt_failed, depth_sum, clean_obs]
 
@@ -389,7 +389,6 @@ def calcVA_chrx(male_snp_samples,female_snp_samples,rec_details,male_subset,fema
     else:
         for allele in allele_list:
             maf.append(format(0.0, '.6f'))
-
 
 
     # VFLAG 2
@@ -612,4 +611,5 @@ def reg2bin(beg):
     #if beg >> 23 == end >> 23: return int(((1 << 6)-1) / 7 + (beg >> 23))
     #if beg >> 26 == end >> 26: return int(((1 << 3)-1) / 7 + (beg >> 26))
     return int(((1 << 15)-1) / 7 + (beg >> 14))
+
 
