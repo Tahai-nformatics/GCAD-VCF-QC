@@ -213,7 +213,7 @@ def calcVA_multiallelic(snp_samples,rec_details,subset):
 
     #Skipping VLAG 11 (WES)
 
-    [passing_d,failing_d,missing,gt_failed,clean_passing_d,depth_sum,abhet_AD_list,abhet_DP_list]= count_gt_multiallelic(snp_samples,rec_details)
+    [passing_d,failing_d,missing,gt_failed,clean_passing_d,depth_sum,abhet_AD_list,abhet_DP_list, allele_count_dict]= count_gt_multiallelic(snp_samples,rec_details)
     obs_hom1 = sum(list(passing_d['obs_homo1'].values()))
     obs_het = sum(list(passing_d['obs_het'].values()))
     obs_hom2 = sum(list(passing_d['obs_homo2'].values()))
@@ -304,7 +304,7 @@ def calcVA_multiallelic(snp_samples,rec_details,subset):
         except:
             pass
 
-    return [vf,maf,passing_d,failing_d,missing,gt_failed,clean_passing_d,sum_clean,depth_sum,ab_het]
+    return [vf,maf,passing_d,failing_d,missing,gt_failed,clean_passing_d,sum_clean,depth_sum,ab_het, allele_count_dict]
 
 def calcVA_chrx(male_snp_samples,female_snp_samples,rec_details,male_subset,female_subset):
     vf = []
@@ -611,5 +611,6 @@ def reg2bin(beg):
     #if beg >> 23 == end >> 23: return int(((1 << 6)-1) / 7 + (beg >> 23))
     #if beg >> 26 == end >> 26: return int(((1 << 3)-1) / 7 + (beg >> 26))
     return int(((1 << 15)-1) / 7 + (beg >> 14))
+
 
 

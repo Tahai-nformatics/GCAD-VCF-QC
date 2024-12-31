@@ -170,7 +170,7 @@ def count_gt_multiallelic(samples,rec_details):
                             'obs_het': {((i, b), (b, i)): 0 for i in allele_list for b in allele_list[i:] if (i, b) != (b, i)},
                             'obs_homo2': {((i, b), (b, i)): 0 for i in allele_list for b in allele_list[i:] if (i, b) == (b, i) and i != 0}}
     failing_d = copy.deepcopy(passing_d)
-    
+    allele_count_dict = OrderedDict({key:{n:0 for n in range(0,N+1)} for key in passing_d})
     for i in allele_list:    #Create Passing and Failing Dictionary with keys being all possible Genotypes. Pipeline coded to recognize both orientations of GT's example: (0,1) and (1,0) GT's
             for b in allele_list[i:]:
                 for subgroup in mi.sa.subgroups:
@@ -228,11 +228,15 @@ def count_gt_multiallelic(samples,rec_details):
             if sm['GT'] == (0,0):
                 passing_d['obs_homo1'][((0, 0), (0, 0))] +=1
                 mi.sa.sa_collection_multiallelic[k].tallySA['passing_obs_homo1'] += 1
+                allele_count_dict['obs_homo1'][0] += 2
             else: #Homozygous ALT
                 passing_d['obs_homo2'][(sm['GT'], (sm['GT'][1],sm['GT'][0]))] +=1
+                allele_count_dict['obs_homo2'][sm['GT'][0]] += 2
                 mi.sa.sa_collection_multiallelic[k].tallySA['passing_obs_homo2'] += 1
         else: #Heterozygous sample
             passing_d['obs_het'][(sm['GT'], (sm['GT'][1],sm['GT'][0]))] +=1
+            allele_count_dict['obs_het'][sm['GT'][0]] += 1
+            allele_count_dict['obs_het'][sm['GT'][1]] += 1
             if 0 in sm['GT']: # Treat Alternate alleles in a Het sample differently for Zhet calculations
                 mi.sa.sa_collection_multiallelic[k].tallySA['passing_obs_het'] += 1
             else:
@@ -246,7 +250,7 @@ def count_gt_multiallelic(samples,rec_details):
 
 
     clean_passing_d = copy.deepcopy(passing_d)
-    return [passing_d,failing_d,missing,gt_failed,clean_passing_d,depth_sum,abhet_AD_list,abhet_DP_list]
+    return [passing_d,failing_d,missing,gt_failed,clean_passing_d,depth_sum,abhet_AD_list,abhet_DP_list, allele_count_dict]
 
 def count_gt_chrx(male_samples,female_samples,rec_details):
     N = len(rec_details['alt'])
@@ -566,6 +570,7 @@ def count_gt1(samples, samples_list):
         #else: not counted
 
     return [obs_hom1, obs_hts, obs_hom2, missing, depth_sum]
+
 
 
 
