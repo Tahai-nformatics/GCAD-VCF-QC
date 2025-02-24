@@ -107,7 +107,6 @@ def calcVA(snp_samples, rec_details, subset):
     total = obs_hom1 + obs_hets + obs_hom2 + missing + gt_failed
     non_missing = obs_hom1 + obs_hets + obs_hom2
     total_genotypes = non_missing + gt_failed
-
     # VFLAG 2
     if (missing + gt_failed) == total:
         vf.append(2)
@@ -167,12 +166,12 @@ def calcVA(snp_samples, rec_details, subset):
         vf.append(0)
 
         # Set passing
-        pass_cnt = [obs_hom1, obs_hets, obs_hom2]
-        fail_cnt = failed
-    else:
-        fail_cnt = [obs_hom1 + failed[0], obs_hets + failed[1], obs_hom2 + failed[2]]
+    pass_cnt = [obs_hom1, obs_hets, obs_hom2]
+    fail_cnt = failed
+    #else:
+    #    fail_cnt = [obs_hom1 + failed[0], obs_hets + failed[1], obs_hom2 + failed[2]]
 
-    clean_obs = [obs_hom1, obs_hets, obs_hom2]
+    #clean_obs = [obs_hom1, obs_hets, obs_hom2]
 
     # AB Het
     if het_dp > 0:
@@ -180,10 +179,10 @@ def calcVA(snp_samples, rec_details, subset):
     else:
         ab_het = '.'
 
-    return [vf, ab_het, pass_cnt, fail_cnt, missing, gt_failed, depth_sum, clean_obs]
+    return [vf, ab_het, pass_cnt, fail_cnt, missing, gt_failed, depth_sum]
 
 
-def calcVA_multiallelic(snp_samples,rec_details,subset):
+def calcVA_multiallelic(snp_samples,rec_details,subset,vtype):
     """
     """
 
@@ -213,7 +212,7 @@ def calcVA_multiallelic(snp_samples,rec_details,subset):
 
     #Skipping VLAG 11 (WES)
 
-    [passing_d,failing_d,missing,gt_failed,clean_passing_d,depth_sum,abhet_AD_list,abhet_DP_list, allele_count_dict]= count_gt_multiallelic(snp_samples,rec_details)
+    [passing_d,failing_d,missing,gt_failed,clean_passing_d,depth_sum,abhet_AD_list,abhet_DP_list, allele_count_dict]= count_gt_multiallelic(snp_samples,rec_details,vtype)
     obs_hom1 = sum(list(passing_d['obs_homo1'].values()))
     obs_het = sum(list(passing_d['obs_het'].values()))
     obs_hom2 = sum(list(passing_d['obs_homo2'].values()))
@@ -292,11 +291,6 @@ def calcVA_multiallelic(snp_samples,rec_details,subset):
 
     if len(vf) < 1:
         vf.append(0)
-    else:   #Fail the passing_d ie: Use Clean counts- Vflags present
-        for classification in passing_d.keys():
-            for key, values in passing_d[classification].items():
-                passing_d[classification][key] = 0
-                failing_d[classification][key] += values
 
     for item in range(len(ab_het)):
         try:

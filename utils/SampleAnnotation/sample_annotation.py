@@ -137,6 +137,12 @@ class SampleAnnotation:
             self.sa_collection[indiv_id].has_mother):
               self.mi_kids.append(indiv_id)
 
+    def save_good_kid_multiallelic(self,indiv_id):
+        if (self.sa_collection_multiallelic[indiv_id].has_father
+            or
+            self.sa_collection_multiallelic[indiv_id].has_mother):
+              self.mi_kids.append(indiv_id)
+
     def get_mi_kids(self):
         return self.mi_kids
 
@@ -167,6 +173,26 @@ class SampleAnnotation:
 
         # tally missing and good genotypes
         self.sa_collection[indiv_id].tallySA[ vsm['GT'] ] += 1
+    
+
+
+    def tally_multiallelic(self, indiv_id, vsm, failed):
+        if failed == 1:
+            self.sa_collection_multiallelic[indiv_id].tallySA[ -9 ] += 1
+            if vsm['DP'] != None:
+                 self.add_dp(indiv_id, vsm['DP'])
+            return
+        elif failed == -1:
+            #if b_or_m == "biallelic":
+            # good (passing) genotypes
+            self.save_good_kid_multiallelic(indiv_id)
+            self.add_dp_multiallelic(indiv_id, vsm['DP'])
+
+
+        # tally missing and good genotypes
+        self.sa_collection[indiv_id].tallySA[ vsm['GT'] ] += 1
+
+
     """
     def tally_multiallelic(self, indiv_id, vsm, failed):
         if failed == 1:
@@ -211,6 +237,52 @@ class SampleAnnotation:
                 self.sa_collection[indiv_id].tallySA['tv'] += 1
                 if wes_flag:
                    self.sa_collection[indiv_id].tallySA['tv_wes'] += 1
+
+    def tallyTiTv_multiallelic(self, indiv_id, ref, alt,genotype,vtype):
+        if vtype == 'MULTI_INDEL':
+            return
+        for allele_idx in genotype:
+        # Ignore the reference allele (0 index in VCF genotype)
+            if allele_idx == 0:
+                continue
+            #Not a SNV
+            if len(alt[allele_idx-1]) != len(ref):
+                continue
+            #SNV
+            else:
+                current_alt = alt[allele_idx - 1] # Get the current alternate allele
+                if current_alt == "*": continue 
+                if len(ref) >1:
+                    for a, b in zip(ref, current_alt):  # Iterate through corresponding characters in ref and alt
+                        if a == b:
+                            continue
+                        #print(a,b)
+                        if a in {'A', 'G'}:
+                            if b in {'A', 'G'}:
+                                self.sa_collection_multiallelic[indiv_id].tallySA['ti'] += 1
+                            else:
+                                self.sa_collection_multiallelic[indiv_id].tallySA['tv'] += 1
+                        elif a in {'C', 'T'}:
+                            if b in {'C', 'T'}:
+                                self.sa_collection_multiallelic[indiv_id].tallySA['ti'] += 1
+                            else:
+                                self.sa_collection_multiallelic[indiv_id].tallySA['tv'] += 1
+                else:
+                    #Same length ref and alt
+                    for a, b in zip(ref, current_alt):  # Iterate through corresponding characters in ref and alt
+                        if a in {'A', 'G'}:
+                            if b in {'A', 'G'}:
+                                self.sa_collection_multiallelic[indiv_id].tallySA['ti'] += 1
+                            else:
+                                self.sa_collection_multiallelic[indiv_id].tallySA['tv'] += 1
+                        elif a in {'C', 'T'}:
+                            if b in {'C', 'T'}:
+                                self.sa_collection_multiallelic[indiv_id].tallySA['ti'] += 1
+                            else:
+                                self.sa_collection_multiallelic[indiv_id].tallySA['tv'] += 1
+
+                        
+
 
     def add_dp(self,indiv_id, dp):
         self.sa_collection[indiv_id].dp_total += dp

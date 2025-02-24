@@ -142,26 +142,25 @@ def write_subset_stats_multiallelic(prefix, rec, subset,maf, vf, passing_d,faili
                  'chr': rec.contig, 'pos': rec.pos}
     total_genotypes = sum_clean + gt_failed
 
-
     #MeanDepth    
     mean_depth = depth_sum / total_genotypes if total_genotypes else 0
     #CallRate
     callrate = 1 - (missing + gt_failed) / (missing + gt_failed + sum_clean)
 
+
     with open(outfile, 'a') as csvfile:
         fieldnames = ['CHR','POS',
-                      'Pass00','Pass01', "Pass11",
-                      'Fail00', 'Fail01', 'Fail11',
-                      'Missing', 'GT_Failed',
-                      'Clean00', 'Clean01','Clean11',
-                      'Mono','CallRate','CallBad','GATKPass',
-                      'AltAF', 'MeanDepth', 'HiDepth', 'ABHet',
+                      'PassRR','PassRA','PassAA',
+                      'FailRR','FailRA','FailAA',
+                      'Missing','GT_Failed',
+                      'rsID','RefAllele','AltAllele','VTYPE',
+                      'MultiAllele', 'QUAL', 
+                      'GLNexusPass','Mono', 
+                      'CallRate','CallBad','AltAF',
+                      'MeanDepth','HiDepth','ABHet','RecommendDrop',
                       'Mend_Incon','Mend_pairs','propMI',
-                      'MultiAllele','FilteredOut','VFLAGS', 'rsID', 'RefAllele', 'AltAllele',
-                      'QUAL','FILTER','VTYPE',
-                     ]
+                      ]
 
-        #fieldnames.extend(scores.keys())
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames , delimiter='\t', lineterminator='\n')
         
         if newfile:
@@ -169,38 +168,34 @@ def write_subset_stats_multiallelic(prefix, rec, subset,maf, vf, passing_d,faili
         qual = "{0:.2f}".format(rec.qual) if rec.qual is not None else 'NA'
         row = {'CHR': rec.contig,
                'POS': rec.pos,
-            'Pass00':list(passing_d['obs_homo1'].values())[0],
-            "Pass01":",".join(str(x) for x in passing_d['obs_het'].values()),
-            "Pass11":",".join(str(x) for x in passing_d['obs_homo2'].values()),
-            'Fail00':",".join(str(x) for x in failing_d['obs_homo1'].values()),
-            'Fail01':",".join(str(x) for x in failing_d['obs_het'].values()),
-            'Fail11':",".join(str(x) for x in failing_d['obs_homo2'].values()),
+            'PassRR':list(passing_d['obs_homo1'].values())[0],
+            "PassRA":",".join(str(x) for x in passing_d['obs_het'].values()),
+            "PassAA":",".join(str(x) for x in passing_d['obs_homo2'].values()),
+            'FailRR':",".join(str(x) for x in failing_d['obs_homo1'].values()),
+            'FailRA':",".join(str(x) for x in failing_d['obs_het'].values()),
+            'FailAA':",".join(str(x) for x in failing_d['obs_homo2'].values()),
             'Missing': missing,
             'GT_Failed':gt_failed,
-            'Clean00': list(clean_passing_d['obs_homo1'].values())[0],
-            'Clean01':",".join(str(x) for x in clean_passing_d['obs_het'].values()),
-            'Clean11': ",".join(str(x) for x in clean_passing_d['obs_homo2'].values()),
-            'Mono': int(3 in vf),
-            'CallRate':"{0:.6f}".format(callrate), 'CallBad':int(callrate < (1 - cfg.miss_rate)),
-            'GATKPass': int(1 not in vf),
-            'AltAF': ",".join(str(x) for x in maf[1:]),
-            'MeanDepth':"{0:.6f}".format(mean_depth), 'HiDepth':int(mean_depth > cfg.max_dp),
-            'ABHet':",".join(str(x) for x in ab_het[1:]) if len(ab_het) > 1 else ".",
-            'Mend_Incon':mend_errors, 'Mend_pairs':mend_pairs,'propMI': "{0:.6f}".format(mend_errors / mend_pairs if mend_pairs >0 else -1),
-            'MultiAllele': 1, 'FilteredOut': int(0 not in vf),
-            'VFLAGS': ",".join(str(x) for x in vf),
             'rsID': rec.id if rec.id else '.',
             'RefAllele': rec.ref,
             'AltAllele': ",".join(rec.alts),
-            'QUAL':qual,
-            'FILTER':",".join(rec.filter.keys()),
             'VTYPE': VTYPE,
+            'MultiAllele': 1,
+            'QUAL':qual,
+            'GLNexusPass': int(1 not in vf),
+            'Mono': int(3 in vf),
+            'CallRate':"{0:.6f}".format(callrate), 'CallBad':int(callrate < (1 - cfg.miss_rate)),
+            'AltAF': ",".join(str(x) for x in maf[1:]),
+            'MeanDepth':"{0:.6f}".format(mean_depth), 'HiDepth':int(mean_depth > cfg.max_dp),
+            'ABHet':",".join(str(x) for x in ab_het[1:]) if len(ab_het) > 1 else ".",
+            'RecommendDrop': int(0 not in vf),
+            'Mend_Incon':mend_errors, 'Mend_pairs':mend_pairs,'propMI': "{0:.6f}".format(mend_errors / mend_pairs if mend_pairs >0 else -1),
             }
         #row.update(scores)
         writer.writerow(row)
     return
 
-def write_subset_stats(prefix, subset, rec, vf, abhet, passing, failing, missing, gt_failed, depth_sum, clean_obs, mend_pairs, mend_errors, vtype, isWES, have_target):
+def write_subset_stats(prefix, subset, rec, vf, abhet, passing, failing, missing, gt_failed, depth_sum, mend_pairs, mend_errors, vtype, isWES, have_target):
     """
     """
     outfile = '{}.{}.tsv'.format(prefix, subset)
@@ -208,14 +203,15 @@ def write_subset_stats(prefix, subset, rec, vf, abhet, passing, failing, missing
 
     with open(outfile, 'a') as csvfile:
         fieldnames = ['CHR','POS',
-                      'Pass00','Pass01','Pass11',
-                      'Fail00','Fail01','Fail11',
+                      'PassRR','PassRA','PassAA',
+                      'FailRR','FailRA','FailAA',
                       'Missing','GT_Failed',
-                      'Clean00','Clean01','Clean11','Mono','CallRate','CallBad','GATKPass','AltAF',
-                      'MeanDepth','HiDepth','ABHet','Mend_Incon','Mend_pairs','propMI','MultiAllele','FilteredOut',
-                      'VFLAGS','rsID','RefAllele','AltAllele','QUAL','FILTER','VTYPE',
+                      'rsID','RefAllele','AltAllele', 'VTYPE',
+                      'MultiAllele', 'QUAL', 'GLNexusPass', 'Mono',
+                      'CallRate','CallBad','AltAF',
+                      'MeanDepth','HiDepth','ABHet', 'RecommendedDrop',
+                      'Mend_Incon','Mend_pairs','propMI',
                       ]
-
         # Additional column for WES
         if isWES:
             fieldnames.extend(['InTargetRegion'])
@@ -229,7 +225,7 @@ def write_subset_stats(prefix, subset, rec, vf, abhet, passing, failing, missing
             writer.writeheader()
 
         # field calculations
-        sum_clean = sum(clean_obs)
+        sum_clean = sum(passing)
 
         # callrate
         callrate = 1 - (missing + gt_failed) / (missing + gt_failed + sum_clean)
@@ -240,10 +236,8 @@ def write_subset_stats(prefix, subset, rec, vf, abhet, passing, failing, missing
         temp = 2 * sum_clean
 
         if temp > 0:
-            maf = (clean_obs[1] + 2 * clean_obs[2]) / temp
+            maf = (passing[1] + 2 * passing[2]) / temp
             alt_maf = maf
-            #if maf > 0.5:
-            #    maf = 1 - maf
 
         maf = "{0:.6f}".format(maf)
 
@@ -256,27 +250,25 @@ def write_subset_stats(prefix, subset, rec, vf, abhet, passing, failing, missing
         vf.sort()
 
         row = {'CHR': rec.contig, 'POS': rec.pos,
-            'Pass00':passing[0],'Pass01':passing[1],'Pass11':passing[2],
-            'Fail00':failing[0],'Fail01':failing[1],'Fail11':failing[2],
+            'PassRR':passing[0],'PassRA':passing[1],'PassAA':passing[2],
+            'FailRR':failing[0],'FailRA':failing[1],'FailAA':failing[2],
             'Missing':missing, 'GT_Failed':gt_failed,
-            'Clean00':clean_obs[0],'Clean01':clean_obs[1],'Clean11':clean_obs[2],
+            'rsID':rec.id if rec.id else '.',
+            'RefAllele':rec.ref,'AltAllele':",".join(map(str,rec.alts)),
+            'VTYPE': vtype,
+            'MultiAllele':0,
+            'QUAL':qual,
+            'GLNexusPass':int(1 not in vf),
             'Mono':int(3 in vf),
             'CallRate':"{0:.6f}".format(callrate),
             'CallBad': int(callrate < (1 - cfg.miss_rate)),
-            'GATKPass':int(1 not in vf),
             'AltAF':maf,
-            #'AltAF':"{0:.6f}".format(alt_maf),
             'MeanDepth':"{0:.6f}".format(mean_depth),'HiDepth':int(mean_depth > cfg.max_dp),
             'ABHet':abhet,
-            'Mend_Incon':mend_errors, 'Mend_pairs':mend_pairs, 'propMI': "{0:.6f}".format(mend_errors / mend_pairs if mend_pairs >0 else 0),
-            'MultiAllele':0,'FilteredOut':int(0 not in vf),
-            'VFLAGS':",".join(map(str,vf)),
-            'rsID':rec.id if rec.id else '.',
-            'RefAllele':rec.ref,'AltAllele':",".join(map(str,rec.alts)),
-            'QUAL':qual,
-            'FILTER':",".join(rec.filter.keys()),
-            'VTYPE': vtype
+            'RecommendedDrop':int(0 not in vf),
+            'Mend_Incon':mend_errors, 'Mend_pairs':mend_pairs, 'propMI': "{0:.6f}".format(mend_errors / mend_pairs if mend_pairs >0 else -1)
             }
+
 
         if isWES:
            if have_target:
@@ -378,10 +370,8 @@ def write_mendelian_errors(prefix, rec, fam_info, genos ): # mmmm, genos
                          'CGT': "/".join(map(str,genos[2]))
                          })
 
-
+"""
 def write_indiv_summary_multiallelic(prefix, isWES):
-    """
-    """
     outfile = '{}.multiallelic.tsv'.format(prefix)
 
     with open(outfile, 'w') as csvfile:
@@ -418,7 +408,7 @@ def write_indiv_summary_multiallelic(prefix, isWES):
                row['TiTvRatio_WES'] = "{0:.5f}".format(ti_tv_wes)
             writer.writerow(row)
     return
-
+"""
 
 def write_indiv_summary(prefix, isWES):
     """
@@ -431,7 +421,8 @@ def write_indiv_summary(prefix, isWES):
                       'Missing','Set_Missing', 'Missing_Multi', 'Set_Missing_Multi',
                       'Singleton','Private_Doubleton','Doubleton','Singleton_Multi', 'Private_Doubleton_Multi', 'Doubleton_Multi',
                       'HetHom', 'HetHom_Multi',
-                      'Ti','Tv','TiTvRatio','IndDepthSum','IndMeanDepth','IndDepthSum_Multi', 'IndMeanDepth_Multi',
+                      'Ti_Bi','Tv_Bi','TiTvRatio_Bi', 'Ti_Multi', 'Tv_Multi', 'TiTvRatio_Multi', 
+                      'IndDepthSum','IndMeanDepth','IndDepthSum_Multi', 'IndMeanDepth_Multi',
                       '1P_MI','2P_MI','MI_pairs','Non_Missing_Indels',]
 
         if isWES:
@@ -444,10 +435,9 @@ def write_indiv_summary(prefix, isWES):
         abc_order = OrderedDict(sorted(mi.sa.sa_collection.items()))
         abc_order_multiallelic = OrderedDict(sorted(mi.sa.sa_collection_multiallelic.items()))
         for (indiv, val), (indiv2,val2) in zip(abc_order.items(),abc_order_multiallelic.items()):
-            #Biallelic
             # ti/tv
             ti_tv = val.tallySA['ti'] / val.tallySA['tv'] if val.tallySA['tv'] else 0
-
+            ti_tv_multi = val2.tallySA['ti'] / val2.tallySA['tv'] if val2.tallySA['tv'] else 0
             # HetHom is the ratio of hets to homozygous alt SNVs
             het_hom_biallelic = val.tallySA[(0,1)] / val.tallySA[(1,1)] if val.tallySA[(1,1)] else 0
             # mean_depth
@@ -476,7 +466,8 @@ def write_indiv_summary(prefix, isWES):
                             'Doubleton_Multi': val2.tallySA['doubleton'],
                             'HetHom':"{0:.5f}".format(het_hom_biallelic),
                             'HetHom_Multi' : "{0:.5f}".format(het_hom_multiallelic),
-                            'Ti': val.tallySA['ti'], 'Tv': val.tallySA['tv'], 'TiTvRatio':"{0:.5f}".format(ti_tv),
+                            'Ti_Bi': val.tallySA['ti'], 'Tv_Bi': val.tallySA['tv'], 'TiTvRatio_Bi':"{0:.5f}".format(ti_tv),
+                            'Ti_Multi':val2.tallySA['ti'], 'Tv_Multi': val2.tallySA['tv'], 'TiTvRatio_Multi': "{0:.5f}".format(ti_tv_multi),
                             'IndDepthSum': val.dp_total,
                             'IndMeanDepth':"{0:.5f}".format(mean_depth_biallelic),
                             'IndDepthSum_Multi' : val2.dp_total,
@@ -571,6 +562,35 @@ def delete_previous_outputs(out_dir, prefix, subsets):
             os.remove(out_file)
     return
 
+def determine_vtype(rec):
+    alts_vtype = []
+    for alts in rec.alts:
+        ct = 0
+        if alts != "*":
+            if len(rec.ref) != len(alts):
+                vtype='INDEL'
+                alts_vtype.append(vtype)
+                continue
+            for i in range(len(rec.ref)):   # IF length of ref and alt is same...
+                if rec.ref[i] != alts[i]:   #If there is mismatch in BP
+                    vtype='SNP'
+                    ct +=1
+            if ct >1:
+                vtype='INDEL'
+                alts_vtype.append(vtype)
+            elif ct == 1:
+                VTYPE='SNP'
+                alts_vtype.append(vtype)
+
+    if ( 'SNP' in alts_vtype ) and ( 'INDEL' in alts_vtype ):
+        vtype='MULTI_MIX'
+    elif 'SNP' in alts_vtype:
+        vtype='MULTI_SNP'
+    elif 'INDEL' in alts_vtype:
+        vtype='MULTI_INDEL'
+    else:
+        raise "VTYPE error"
+    return vtype
 
 def vcf_output_create_biallelic(rec, subset, clean_obs, vf, abhet, vtype, vcf_out):
     sum_clean = sum(clean_obs)
@@ -593,55 +613,44 @@ def vcf_output_create_biallelic(rec, subset, clean_obs, vf, abhet, vtype, vcf_ou
 
     #Append Allele Counts to INFO field
     rec.info['AC'] = alt_allele_counts
-    #print(rec.info['AC'])
 
     #Append Allele Frequency to INFO field
-    #rec.info['AF'] = tuple(float(maf[key]) for key in alt_allele_counts.keys())
     rec.info['AF'] = float(alt_maf)
 
     #Append VFLAGS to INFO field
-    rec.info[ "VFLAGS_" + subset ] = vf
+    #rec.info[ "VFLAGS_" + subset ] = vf
+    
     #Append subset ABHet to INFO field
-    rec.info[ "ABHet_" + subset ] = [str(num) for num in abhet]
+    #rec.info[ "ABHet_" + subset ] = [str(num) for num in abhet]
 
     #Append VariantType to INFO field 
-    rec.info[ "VariantType" ] = vtype
+    #rec.info[ "VariantType" ] = vtype
 
     #Write to VCF File
     vcf_out.write(rec)
 
 
-def vcf_output_create_multiallelic(rec, subset, clean_d, maf, vf, ab_het, vtype, vcf_out):
-    total_sum = sum(sum(Genotype_type.values()) for Genotype_type in clean_d.values()) *2
-    alt_allele_counts = {i: 0 for i in range(1,len(rec.alts)+1)}
-
-    #Loop through Passing dictionary and add allele counts to alt_allele_counts (For AC)
-    for allele in alt_allele_counts:
-        for GT_type in clean_d.keys():
-            for key,values in clean_d[GT_type].items():
-                if any(allele in subkey for subkey in key):
-                    if GT_type == "obs_het":
-                        alt_allele_counts[allele] += clean_d[GT_type][key]
-                    else:
-                        alt_allele_counts[allele] += (clean_d[GT_type][key] *2)
-
+def vcf_output_create_multiallelic(rec, subset, clean_d, maf, vf, ab_het, vtype, vcf_out, sum_clean, allele_c_dict):
+    total_sum = sum_clean *2
+    
     #Append Allele Number to INFO field
-
     rec.info["AN"] = total_sum
+    
     #Append Allele Counts to INFO field
+    rec.info['AC'] = tuple((allele_c_dict['obs_het'][allele] + allele_c_dict['obs_homo2'][allele]) for allele in allele_c_dict['obs_het'] if allele != 0)
 
-    rec.info['AC'] = tuple(alt_allele_counts[key] for key in alt_allele_counts.keys())
     #Append Allele Frequency to INFO field
-    rec.info['AF'] = tuple(float(maf[key]) for key in alt_allele_counts.keys())
+    rec.info['AF'] = tuple(float(af) for af in maf[1:])
+
 
     #Append VFLAGS to INFO field
-    rec.info[ "VFLAGS_" + subset ] = vf
+    #rec.info[ "VFLAGS_" + subset ] = vf
 
     #Append subset ABHet to INFO field
-    rec.info["ABHet_" + subset] = ab_het[0] if len(ab_het) == 1 else ",".join(map(str, ab_het[1:]))
+    #rec.info["ABHet_" + subset] = ab_het[0] if len(ab_het) == 1 else ",".join(map(str, ab_het[1:]))
     
     #Append VariantType to INFO field 
-    rec.info[ "VariantType" ] = vtype
+    #rec.info[ "VariantType" ] = vtype
     #Write to VCF File
     vcf_out.write(rec)
 
@@ -871,46 +880,20 @@ def main():
     variant_ct_biallelic = 0
     variant_ct_multiallelic = 0
     start_p = time.time()
-    
+        
 
-    ## Run analysis on Multiallelic chromosome ##
+## Run analysis on Multiallelic chromosome ##
     for rec in vcf_in.fetch(rChr, rStart, rEnd):
         if len(rec.alts) >1:
             if rStart is None or (rStart <= rec.pos <= rEnd): #
-                alts_vtype = []
-                for alts in rec.alts:
-                    ct = 0
-                    if alts != "*":
-                        if len(rec.ref) != len(alts):
-                            vtype='INDEL'
-                            alts_vtype.append(vtype)
-                            continue
-                        for i in range(len(rec.ref)):   # IF length of ref and alt is same...
-                            if rec.ref[i] != alts[i]:   #If there is mismatch in BP
-                                vtype='SNP'
-                                ct +=1           #
-                        if ct >1:
-                            vtype='INDEL'
-                            alts_vtype.append(vtype)
-                        elif ct == 1:
-                            VTYPE='SNP'
-                            alts_vtype.append(vtype)
-
-                if ( 'SNP' in alts_vtype ) and ( 'INDEL' in alts_vtype ):
-                    vtype='MULTI_MIX'
-                elif 'SNP' in alts_vtype:
-                    vtype='MULTI_SNP'
-                elif 'INDEL' in alts_vtype:
-                    vtype='MULTI_INDEL'
-                else:
-                    raise "VTYPE error" 
+                vtype = determine_vtype(rec)
                 samplesDict = gather_intersect_fam_vcf_samples(rec.samples, samplesDict)
 
                 for subset, sm_list in samplesDict.items():
                     rec_details = {'filter': rec.filter, 'ref': rec.ref, 'alt': rec.alts,
                                                 'chr': rec.contig, 'pos': rec.pos}
                 #Calculate stats
-                    [vf,maf,passing_d,failing_d,missing,gt_failed,clean_passing_d,sum_clean,depth_sum,ab_het, allele_count_dict] = calcVA_multiallelic(sm_list['dict'],rec_details,subset)
+                    [vf,maf,passing_d,failing_d,missing,gt_failed,clean_passing_d,sum_clean,depth_sum,ab_het, allele_count_dict] = calcVA_multiallelic(sm_list['dict'],rec_details,subset, vtype)
                     #MI
                     mend_pairs, mend_errors = check_mendelian_errors_multiallelic(prefix_mi, rec)
                     #pHWE per subgroup
@@ -920,11 +903,11 @@ def main():
                     #
                     write_subset_stats_multiallelic(prefix_companions, rec, subset, maf ,vf,passing_d,failing_d,missing,gt_failed,clean_passing_d,sum_clean,depth_sum,ab_het,mend_pairs,mend_errors,vtype)
                 
-                find_s_d_multiallelic(clean_passing_d,rec.samples,allele_count_dict )
-
+                find_s_d_multiallelic(clean_passing_d,rec.samples,allele_count_dict, rec.pos )
+                
                 if args.no_output_vcf == False:
                     #Append to INFO field headers and write to VCF file
-                    vcf_output_create_multiallelic(rec, subset, clean_passing_d, maf, vf, ab_het, vtype, vcf_out)
+                    vcf_output_create_multiallelic(rec, subset, clean_passing_d, maf, vf, ab_het, vtype, vcf_out, sum_clean, allele_count_dict)
 
                 variant_ct_multiallelic += 1
         else:
@@ -941,7 +924,7 @@ def main():
                 vflag_11_ct = 0
                 for subset, sm_list in samplesDict.items(): 
                     # calc stats
-                    [vf, abhet, passing, failing, missing, gt_failed, depth_sum, clean_obs] = calcVA(
+                    [vf, abhet, passing, failing, missing, gt_failed, depth_sum] = calcVA(
                         sm_list['dict'],
                         {'filter': rec.filter, 'ref': rec.ref, 'alt': rec.alts,
                         'chr': rec.contig, 'pos': rec.pos
@@ -949,7 +932,7 @@ def main():
                         subset,
                     )
 
-                    grp_obs.append(clean_obs)
+                    grp_obs.append(passing)
 
                     # MI
                     mend_pairs, mend_errors = check_mendelian_errors(prefix_mi, rec)
@@ -961,7 +944,7 @@ def main():
                     if isWES:
                         have_target = samplesDict[subset]['have_target']
                     write_subset_stats(prefix_companions, subset, rec, vf, abhet,
-                                    passing, failing, missing, gt_failed, depth_sum, clean_obs,
+                                    passing, failing, missing, gt_failed, depth_sum,
                                     mend_pairs, mend_errors, vtype,
                                     isWES, have_target
                                     )
@@ -969,22 +952,22 @@ def main():
                     #vcf_output_create_biallelic(rec, subset, clean_obs, vf, abhet, vtype, vcf_out)
                     
                     #Append Allele Number to INFO field
-                    rec.info["AN"] =  2 * sum(clean_obs)
+                    rec.info["AN"] =  2 * sum(passing)
                     
                     #Append Allele Counts to INFO field
-                    rec.info['AC'] = 2*clean_obs[2] + clean_obs[1]
+                    rec.info['AC'] = 2*passing[2] + passing[1]
 
                     #Append Allele Frequency to INFO field
-                    rec.info['AF'] = float((clean_obs[1] + (2 * clean_obs[2]))/ (2 * sum(clean_obs)))  if sum(clean_obs) > 0 else 0
+                    rec.info['AF'] = float((passing[1] + (2 * passing[2]))/ (2 * sum(passing)))  if sum(passing) > 0 else 0
 
                     # Append subset VFLAGS to INFO field
-                    rec.info[ "VFLAGS_" + subset ] = vf
+                    #rec.info[ "VFLAGS_" + subset ] = vf
 
                     # Append subset ABHet to INFO field
-                    rec.info[ "ABHet_" + subset ] = str(abhet) if abhet != 'NA' else None
+                    #rec.info[ "ABHet_" + subset ] = str(abhet) if abhet != 'NA' else None
 
                     # Append VariantType
-                    rec.info[ "VariantType" ] = vtype
+                    #rec.info[ "VariantType" ] = vtype
 
 
                     # count number of vflag(11) for VariantInTargetRatio
@@ -1112,6 +1095,8 @@ def main():
         # create index
             time.sleep(1)
             check_output(["tabix", "-f", vcf_out_filename])
+
+
 """
 def calculate_subgroup_scores_multiallelic(subset, subg, subg_cntl,allele_count_dict,zhet_sample_counts):
     """ calculate_subgroup_scores - generates nClean, Zhet, and pHWE for subgroups
@@ -1250,93 +1235,70 @@ def calculate_subgroup_scores_chrx(alts,subset, subg_male,subg_female, subg_cntl
     return scores
 
 
-def find_s_d_multiallelic(clean_passing_d, samples, allele_count_dict): #het_gts):
+def find_s_d_multiallelic(clean_passing_d, samples, allele_count_dict, position): #het_gts):
     total_obs_homo_ref = list(clean_passing_d['obs_homo1'].values())[0]
     total_obs_het = sum(list(clean_passing_d['obs_het'].values()))
     total_obs_homo_alt = sum(list(clean_passing_d['obs_homo2'].values()))
     total_obs = total_obs_homo_ref + total_obs_het + total_obs_homo_alt
-    maf = 0
-    if total_obs > 0:
-        maf = (total_obs_het + 2 * total_obs_homo_alt) / (2 * total_obs)
-    if maf <= 0.5:
-        # Check if any non-zero key in obs_het has a value of 1
-        alleles_with_singletons = []
-        alleles_with_private_doubletons = []
-        alleles_with_doubletons = []
-        for allele, het_value in allele_count_dict['obs_het'].items():
-            if allele != 0 and het_value == 1:  # Check for non-zero allele with value 1 in obs_het
-                homo2_value = allele_count_dict['obs_homo2'].get(allele, None)
-                if homo2_value == 0:  # Check if the same allele in obs_homo2 has value 0
+    
+    if total_obs < 5:
+        return # Not enough samples
+    
+    # Check if any non-zero key in obs_het has a value of 1
+    alleles_with_singletons = []
+    alleles_with_private_doubletons = []
+    alleles_with_doubletons = []
+    for allele, het_value in allele_count_dict['obs_het'].items(): #Singleton Check
+        if allele == 0: #Ref checks
+            #Check homozgous_ref counts
+            if allele_count_dict['obs_homo1'][0] == 0: #No homozygous ref counts
+                if het_value == 1:
                     alleles_with_singletons.append(allele)
-            if allele != 0 and het_value ==2:
-                homo2_value = allele_count_dict['obs_homo2'].get(allele, None)
-                if homo2_value == 0:
-                    alleles_with_doubletons.append(allele)
-        for allele, homoz_alt_value in allele_count_dict['obs_homo2'].items():
-            if allele !=0 and homoz_alt_value == 2:
-                het_value = allele_count_dict['obs_het'].get(allele, None)
-                if het_value ==0:
+                if het_value == 2:
+                    alleles_with_doubletons.append(allele) 
+            if allele_count_dict['obs_homo1'][0] == 2:
+                if allele_count_dict['obs_het'][0] == 0:
                     alleles_with_private_doubletons.append(allele)
-        if alleles_with_singletons:
-            singletons = find_singleton_multiallelic(samples,clean_passing_d['obs_het'].keys(),alleles_with_singletons)
-            for idv in singletons:
-                mi.sa.sa_collection_multiallelic[idv].tallySA['singleton'] += 1
-        if alleles_with_private_doubletons:
-            private_doubletons = find_private_doubleton_multiallelic(samples,clean_passing_d['obs_homo2'].keys(), alleles_with_private_doubletons)
+        else:
+        #ALT alleles
+            if het_value == 1:
+                if allele_count_dict['obs_homo2'][allele] == 0: #Check Alt alle
+                    alleles_with_singletons.append(allele)
+            if het_value ==2:
+                if allele_count_dict['obs_homo2'][allele] == 0:
+                    alleles_with_doubletons.append(allele)
+            if allele_count_dict['obs_homo2'][allele] == 2:
+                if allele_count_dict['obs_het'][allele] == 0:
+                    alleles_with_private_doubletons.append(allele)
+    if alleles_with_singletons:
+        singletons = find_singleton_multiallelic(samples,clean_passing_d['obs_het'].keys(),alleles_with_singletons, position)
+        for idv in singletons:
+            mi.sa.sa_collection_multiallelic[idv].tallySA['singleton'] += 1
+    if alleles_with_private_doubletons:
+        #for allele in alleles_with_private_doubletons:
+        if 0 in alleles_with_private_doubletons:
+            private_doubletons = find_private_doubleton_multiallelic(samples,clean_passing_d['obs_homo1'].keys(), alleles_with_private_doubletons, position)
             for idv in private_doubletons:
                 mi.sa.sa_collection_multiallelic[idv].tallySA['p_dblton'] +=1
-        if alleles_with_doubletons:
-            doubletons = find_doubletons_multiallelic(samples,clean_passing_d['obs_het'].keys(), alleles_with_doubletons)
-            for idv in doubletons:
-                mi.sa.sa_collection_multiallelic[idv].tallySA['doubleton'] +=1
-    else:
-        ref_alleles_with_singletons = []
-        ref_alleles_with_private_doubletons = []
-        ref_alleles_with_doubletons = []
+        else:
+            private_doubletons = find_private_doubleton_multiallelic(samples,clean_passing_d['obs_homo2'].keys(), alleles_with_private_doubletons, position)
+            for idv in private_doubletons:
+                mi.sa.sa_collection_multiallelic[idv].tallySA['p_dblton'] +=1
+    if alleles_with_doubletons:
+        doubletons = find_doubletons_multiallelic(samples,clean_passing_d['obs_het'].keys(), alleles_with_doubletons, position)
+        for idv in doubletons:
+            mi.sa.sa_collection_multiallelic[idv].tallySA['doubleton'] +=1
 
-        for allele, het_value in allele_count_dict['obs_het'].items():
-            if allele == 0 and het_value == 1:  # Check for non-zero allele with value 1 in obs_het
-                if allele_count_dict['obs_homo1'][0] == 0:
-                    ref_alleles_with_singletons.append(allele)
-                    singletons = find_singleton_multiallelic(samples,clean_passing_d['obs_het'].keys(),ref_alleles_with_singletons)
-                    for idv in singletons:
-                        mi.sa.sa_collection_multiallelic[idv].tallySA['singleton'] += 1
-                    
-            if allele == 0 and het_value ==2:
-                if allele_count_dict['obs_homo1'][0] == 0:
-                    ref_alleles_with_doubletons.append(allele)
-                    doubletons = find_doubletons_multiallelic(samples,clean_passing_d['obs_het'].keys(), ref_alleles_with_doubletons)
-                    for idv in doubletons:
-                        mi.sa.sa_collection_multiallelic[idv].tallySA['doubleton'] +=1
-                            
-            if allele == 0 and het_value == 0: 
-                if allele_count_dict['obs_homo1'][0] == 2: #One copy of Homozygous REF - 2 0 alleles
-                    ref_alleles_with_private_doubletons.append(allele)
-                    private_doubletons = find_private_doubleton_multiallelic(samples,clean_passing_d['obs_homo1'].keys(), ref_alleles_with_private_doubletons)
-                    for idv in private_doubletons:
-                        mi.sa.sa_collection_multiallelic[idv].tallySA['p_dblton'] +=1
-                    
-
-        """
-        if total_obs_het == 1 and total_obs_homo_ref == 0:
-            idv = find_singleton_multiallelic(samples, clean_passing_d['obs_het'].keys())
-            if idv:
-                mi.sa.sa_collection_multiallelic[idv].tallySA['singleton'] += 1
-        elif total_obs_homo_ref == 1 and total_obs_het == 0:
-            idv = find_private_doubleton_multiallelic(samples, clean_passing_d['obs_homo1'].keys())
-            if idv: mi.sa.sa_collection_multiallelic[idv].tallySA['p_dblton'] += 1
-        elif total_obs_het == 2 and total_obs_homo_ref == 0:
-            dbltons = find_doubletons_multiallelic(samples,clean_passing_d['obs_het'].keys())
-            for idv in dbltons:
-                mi.sa.sa_collection_multiallelic[idv].tallySA['doubleton'] += 1
-
-        """
 def find_s_d(total_obs, samples):
     """
     """
     maf = 0
-    if sum(total_obs) > 0:
+    
+    if sum(total_obs) >= 5:
         maf = (total_obs[1] + 2 * total_obs[2]) / (2 * sum(total_obs))
+    else:
+        return #Not enough Samples
+
     if maf <= 0.5:
         #singleton
         if total_obs[1] == 1 and total_obs[2] == 0:
@@ -1368,12 +1330,11 @@ def find_s_d(total_obs, samples):
                 mi.sa.sa_collection[idv].tallySA['doubleton'] += 1
 
 
-def find_s_d_chrx(clean_d, samples):
+def find_s_d_chrx(clean_d, samples, allele_counts):
     """
     1/1 Male GT's treated as being 'Heterozygous' since even though males are hemizygous at Chrx, they carry an alt allele
     """
     abc_order = OrderedDict(sorted(mi.sa.sa_collection.items()))      #Used to check SEX of sample 
-    maf = 0
     
     total_obs = sum(list(clean_d['male']['obs_homo1'].values())) + sum(list(clean_d['female']['obs_homo1'].values())) + sum(list(clean_d['female']['obs_het'].values())) + sum(list(clean_d['male']['obs_homo2'].values())) + sum(list(clean_d['female']['obs_homo2'].values()))
     total_obs_homo_ref = sum(list(clean_d['female']['obs_homo1'].values()))
@@ -1382,11 +1343,59 @@ def find_s_d_chrx(clean_d, samples):
     female_obs = sum(list(clean_d['female']['obs_homo1'].values())) + sum(list(clean_d['female']['obs_het'].values())) + sum(list(clean_d['female']['obs_homo2'].values()))
     male_obs = sum(list(clean_d['male']['obs_homo1'].values())) + sum(list(clean_d['male']['obs_homo2'].values()))  
     
-    if total_obs > 0:
-        maf = (total_obs_het + (2 * total_obs_homo_alt)) / ((2 * female_obs) + male_obs)
+    allele_count_dict = OrderedDict({key:{n:0 for n in range(0,N+1)} for key in clean_d})
+
+
+     
+    alleles_with_singletons = []
+    alleles_with_private_doubletons = []
+    alleles_with_doubletons = []
+    for allele, het_value in allele_count_dict['obs_het'].items(): #Singleton Check
+        if allele == 0: #Ref checks
+            #Check homozgous_ref counts
+            if allele_count_dict['obs_homo1'][0] == 0: #No homozygous ref counts
+                if het_value == 1:
+                    alleles_with_singletons.append(allele)
+                if het_value == 2:
+                    alleles_with_doubletons.append(allele)
+            if allele_count_dict['obs_homo1'][0] == 2:
+                if allele_count_dict['obs_het'][0] == 0:
+                    alleles_with_private_doubletons.append(allele)
+        else:
+        #ALT alleles
+            if het_value == 1:
+                if allele_count_dict['obs_homo2'][allele] == 0: #Check Alt alle
+                    alleles_with_singletons.append(allele)
+            if het_value ==2:
+                if allele_count_dict['obs_homo2'][allele] == 0:
+                    alleles_with_doubletons.append(allele)
+            if allele_count_dict['obs_homo2'][allele] == 2:
+                if allele_count_dict['obs_het'][allele] == 0:
+                    alleles_with_private_doubletons.append(allele)
+    if alleles_with_singletons:
+        singletons = find_singleton_multiallelic(samples,clean_passing_d['obs_het'].keys(),alleles_with_singletons, position)
+        for idv in singletons:
+            mi.sa.sa_collection_multiallelic[idv].tallySA['singleton'] += 1
+    if alleles_with_private_doubletons:
+        #for allele in alleles_with_private_doubletons:
+        if 0 in alleles_with_private_doubletons:
+            private_doubletons = find_private_doubleton_multiallelic(samples,clean_passing_d['obs_homo1'].keys(), alleles_with_private_doubletons, position)
+            for idv in private_doubletons:
+                mi.sa.sa_collection_multiallelic[idv].tallySA['p_dblton'] +=1
+        else:
+            private_doubletons = find_private_doubleton_multiallelic(samples,clean_passing_d['obs_homo2'].keys(), alleles_with_private_doubletons, position)
+            for idv in private_doubletons:
+                mi.sa.sa_collection_multiallelic[idv].tallySA['p_dblton'] +=1
+    if alleles_with_doubletons:
+        doubletons = find_doubletons_multiallelic(samples,clean_passing_d['obs_het'].keys(), alleles_with_doubletons, position)
+        for idv in doubletons:
+            mi.sa.sa_collection_multiallelic[idv].tallySA['doubleton'] +=1
+    """
+
+    if total_obs < 5:
+        return
     
 
-    if maf <= 0.5:
         if total_obs_het == 1 and total_obs_homo_alt == 0:
             if sum(list(clean_d['female']['obs_het'].values())):                    #Het sample is female, use female GT 0/1
                 idv = find_singleton_chrx(samples, clean_d['female']['obs_het'].keys(), "1")
@@ -1448,7 +1457,7 @@ def find_s_d_chrx(clean_d, samples):
                 dbltons = find_doubletons_chrx(samples,clean_d['female']['obs_het'].keys(), "1")
                 for idv in dbltons:
                     mi.sa.sa_collection[idv].tallySA['doubleton'] += 1
-
+    """
 def find_singleton(samples):
     for k, sm in samples.items():
         if sm['GT'] in {(0,1), (1,0)}:
@@ -1459,19 +1468,20 @@ def find_singleton(samples):
             except TypeError:  # TypeError: unorderable types: NoneType() < int() (missing DP)
                 continue
 
-def find_singleton_multiallelic(samples, het_alleles, alleles_with_singletons):
+def find_singleton_multiallelic(samples, het_alleles, alleles_with_singletons, position):
     s_list = list()
     for k, sm in samples.items():
         for gts in het_alleles:
             if sm['GT'] in gts:
-                if any(allele in alleles_with_singletons for allele in sm['GT']):
-                    try:
-                        if (sm['DP'] >= cfg.MINDP
-                            and sm['GQ'] >= cfg.MINGQ):
-                                s_list.append(k)
-                                #print(f'singleton found {k, sm["GT"]}')
-                    except TypeError:  # TypeError: unorderable types: NoneType() < int() (missing DP)
-                        continue
+                for allele in alleles_with_singletons:
+                    if allele in sm['GT']:
+                    #if any(allele in alleles_with_singletons for allele in sm['GT']):
+                        try:
+                            if (sm['DP'] >= cfg.MINDP
+                                and sm['GQ'] >= cfg.MINGQ):
+                                    s_list.append(k)
+                        except TypeError:  # TypeError: unorderable types: NoneType() < int() (missing DP)
+                            continue
     return s_list
 
 
@@ -1485,18 +1495,17 @@ def find_private_doubleton(samples, allele):
             except TypeError:  # TypeError: unorderable types: NoneType() < int() (missing DP)
                 continue
 
-def find_private_doubleton_multiallelic(samples, allele, alleles_with_private_doubletons):
+def find_private_doubleton_multiallelic(samples, pd_alleles, alleles_with_private_doubletons, position):
     k_list = list()
     for k, sm in samples.items():
-        for gts in allele:
-            if (sm['GT']) in gts:
-                if any(allele in alleles_with_private_doubletons for allele in sm['GT']):
-                    try:
-                        if (sm['DP'] >= cfg.MINDP
-                            and sm['GQ'] >= cfg.MINGQ):
-                            k_list.append(k)
-                    except TypeError:  # TypeError: unorderable types: NoneType() < int() (missing DP)
-                        continue
+        for allele in alleles_with_private_doubletons:
+            if (allele,allele) == sm["GT"]:
+                try:
+                    if (sm['DP'] >= cfg.MINDP
+                        and sm['GQ'] >= cfg.MINGQ):
+                        k_list.append(k)
+                except TypeError:  # TypeError: unorderable types: NoneType() < int() (missing DP)
+                   continue
     return k_list
 
 def find_private_doubleton_chrx(samples, allele, gender):
@@ -1541,19 +1550,20 @@ def find_doubletons(samples):
 
     return k_list
  
-def find_doubletons_multiallelic(samples, het_alleles, alleles_with_doubletons):
+def find_doubletons_multiallelic(samples, het_alleles, alleles_with_doubletons, position):
     k_list = list()
     for k,sm in samples.items():
         for gts in het_alleles:
             if sm['GT'] in gts:
-                if any(allele in alleles_with_doubletons for allele in sm['GT']):
-                    try:
-                        if (sm['DP'] >= cfg.MINDP
-                            and sm['GQ'] >= cfg.MINGQ):
-                            #print(f'doubletons found {k, sm["GT"]}')
-                            k_list.append(k)
-                    except TypeError:  #TypeError: unorderable types: NoneType() < int() (missing DP)
-                        continue 
+                for allele in alleles_with_doubletons:
+                    if allele in sm['GT']:
+                #if any(allele in alleles_with_doubletons for allele in sm['GT']):
+                        try:
+                            if (sm['DP'] >= cfg.MINDP
+                                and sm['GQ'] >= cfg.MINGQ):
+                                k_list.append(k)
+                        except TypeError:  #TypeError: unorderable types: NoneType() < int() (missing DP)
+                            continue 
     return k_list
 
 def find_doubletons_chrx(samples, het_alleles, gender):
@@ -1598,6 +1608,7 @@ def check_mendelian_errors_multiallelic(prefix, rec):
     samples = rec.samples
     mend_pairs = 0
     mend_error = 0
+    
     for kid in mi.sa.get_mi_kids():
         validparents = []
         found_mi_error = 0
