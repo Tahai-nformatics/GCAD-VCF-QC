@@ -300,7 +300,7 @@ def calcVA_multiallelic(snp_samples,rec_details,subset,vtype):
 
     return [vf,maf,passing_d,failing_d,missing,gt_failed,clean_passing_d,sum_clean,depth_sum,ab_het, allele_count_dict]
 
-def calcVA_chrx(male_snp_samples,female_snp_samples,rec_details,male_subset,female_subset):
+def calcVA_chrx(male_snp_samples,female_snp_samples,rec_details,male_subset,female_subset, chrx_is_multiallelic, vtype):
     vf = []
     ab_het = 0
     total = 0
@@ -325,7 +325,7 @@ def calcVA_chrx(male_snp_samples,female_snp_samples,rec_details,male_subset,fema
                     else:
                         pass_snv = 1
     #Skipping VLAG 11 (WES)
-    [passing_d_male,failing_d_male,passing_d_female,failing_d_female,missing,gt_failed,clean_d,depth_sum,abhet_AD_list,abhet_DP_list]= count_gt_chrx(male_snp_samples,female_snp_samples,rec_details)
+    [passing_d_male,failing_d_male,passing_d_female,failing_d_female,missing,gt_failed,clean_d,depth_sum,abhet_AD_list,abhet_DP_list,allele_count_dict]= count_gt_chrx(male_snp_samples,female_snp_samples,rec_details, chrx_is_multiallelic, vtype)
     ab_het = [i for i in range(len(abhet_AD_list))]
     obs_hom1_male = sum(list(passing_d_male['obs_homo1'].values()))
     obs_hom1_female = sum(list(passing_d_female['obs_homo1'].values()))
@@ -439,22 +439,14 @@ def calcVA_chrx(male_snp_samples,female_snp_samples,rec_details,male_subset,fema
         vf.append(0)
         for key, values in passing_d_male['obs_het'].items():
             failing_d_male['obs_het'][key] += values
-    else:
-        for classification in passing_d_male.keys():
-            for key, values in passing_d_male[classification].items():
-                passing_d_male[classification][key] = 0
-                failing_d_male[classification][key] += values
-        for classification in passing_d_female.keys():
-            for key, values in passing_d_female[classification].items():
-                passing_d_female[classification][key] = 0
-                failing_d_female[classification][key] += values
+
     for item in range(len(ab_het)):
         try:
             ab_het[item] = float(ab_het[item])
         except:
             pass
-    
-    return [vf,passing_d_male,passing_d_female,failing_d_male,failing_d_female,missing,gt_failed,clean_d,sum_clean,maf, depth_sum,ab_het]
+        
+    return [vf,passing_d_male,passing_d_female,failing_d_male,failing_d_female,missing,gt_failed,clean_d,sum_clean,maf, depth_sum,ab_het,allele_count_dict]
 
 def check_inside_exon(pos, contig):
    """
