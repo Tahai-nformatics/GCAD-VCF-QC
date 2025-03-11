@@ -445,7 +445,7 @@ def calcVA_chrx(male_snp_samples,female_snp_samples,rec_details,male_subset,fema
             ab_het[item] = float(ab_het[item])
         except:
             pass
-        
+    
     return [vf,passing_d_male,passing_d_female,failing_d_male,failing_d_female,missing,gt_failed,clean_d,sum_clean,maf, depth_sum,ab_het,allele_count_dict]
 
 def check_inside_exon(pos, contig):

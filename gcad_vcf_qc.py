@@ -304,24 +304,46 @@ def write_subset_stats_chrx(prefix, rec, subset,vf,passing_d_male,passing_d_fema
                       'FailRR','FailRA','FailAA',
                       'Missing', 'GT_Failed', 'MaleHet',
                       'rsID','RefAllele','AltAllele','VTYPE',
-                      'MultiAllele', 'QUAL',
+                      'MultiAllele', 'VFLAGS','QUAL',
                       'GLNexusPass','Mono',
                       'CallRate','CallBad','AltAF',
                       'MeanDepth','HiDepth','ABHet','RecommendDrop',
                       'Mend_Incon','Mend_pairs','propMI',
-                      #'Clean00', 'Clean01','Clean11',
-                      #'Mono','CallRate','CallBad','GATKPass',
-                      #'AF','MeanDepth', 'HiDepth', 'ABHet',
-                      #'Mend_Incon','Mend_pairs','propMI',
-                     # 'VFLAGS', 'rsID', 'RefAllele', 'AltAllele',
-                      #'QUAL','FILTER','VTYPE','MaleHet',
                      ]
+
         #fieldnames.extend(scores.keys())
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames , delimiter='\t', lineterminator='\n')
 
         if newfile:
             writer.writeheader()
         qual = "{0:.2f}".format(rec.qual) if rec.qual is not None else 'NA'
+        """
+        row = {'CHR': rec.contig,
+               'POS': rec.pos,
+            'PassRR':str(list(passing_d_male['obs_homo1'].values())[0])+";"+str(list(passing_d_female['obs_homo1'].values())[0]),
+            "PassRA":"0"+";"+",".join(str(x) for x in passing_d_female['obs_het'].values()),
+            "PassAA":",".join(str(x) for x in passing_d_male['obs_homo2'].values())+";"+",".join(str(x) for x in passing_d_female['obs_homo2'].values()),
+            'FailRR':",".join(str(x) for x in failing_d_male['obs_homo1'].values())+";"+",".join(str(x) for x in failing_d_female['obs_homo1'].values()),
+            'FailRA':",".join(str(x) for x in failing_d_male['obs_het'].values())+";"+",".join(str(x) for x in failing_d_female['obs_het'].values()),
+            'FailAA':",".join(str(x) for x in failing_d_male['obs_homo2'].values())+";"+",".join(str(x) for x in failing_d_female['obs_homo2'].values()),
+            'Missing': missing,
+            'GT_Failed':gt_failed,
+            'Mono': int(3 in vf),
+            'CallRate':"{0:.5f}".format(callrate), 'CallBad':int(callrate < (1 - cfg.miss_rate)),
+            'GLNexusPass': int(1 not in vf),
+            'AltAF': ",".join(str(x) for x in maf[1:]),
+            'MeanDepth':"{0:.5f}".format(mean_depth), 'HiDepth':int(mean_depth > cfg.max_dp),
+            'ABHet':",".join(str(x) for x in ab_het[1:]) if len(ab_het) > 1 else ",".join("." for _ in rec.alts),
+            'Mend_Incon':mend_errors, 'Mend_pairs':mend_pairs,'propMI': "{0:.6f}".format(mend_errors / mend_pairs if mend_pairs >0 else -1), 
+            'MultiAllele': 0 if len(rec.alts) ==1 else 1,
+            'VFLAGS': vf,
+            'rsID': rec.id if rec.id else '.',
+            'RefAllele': rec.ref,
+            'AltAllele': ",".join(rec.alts),
+            'VTYPE': vtype,
+            'MaleHet':sum(clean_d['male']['obs_het'].values()),
+            }
+        """
         row = {'CHR': rec.contig,
                'POS': rec.pos,
             'PassRR':str(list(passing_d_male['obs_homo1'].values())[0])+";"+str(list(passing_d_female['obs_homo1'].values())[0]),
@@ -338,6 +360,7 @@ def write_subset_stats_chrx(prefix, rec, subset,vf,passing_d_male,passing_d_fema
             'AltAllele': ",".join(rec.alts),
             'VTYPE': vtype,
             'MultiAllele': 0,
+            'VFLAGS': vf,
             'QUAL':qual,
             'GLNexusPass': int(1 not in vf),
             'Mono': int(3 in vf),
@@ -420,13 +443,12 @@ def write_indiv_summary(prefix, isWES):
 
     with open(outfile, 'w') as csvfile:
         fieldnames = ['SampleID','SEX',
-                      'total_nRR','total_nRA','total_nAA','Passing_Multi', 'Failing_Multi',
-                      'Missing','Set_Missing', 'Missing_Multi', 'Set_Missing_Multi',
-                      'Singleton','Private_Doubleton','Doubleton','Singleton_Multi', 'Private_Doubleton_Multi', 'Doubleton_Multi',
-                      'HetHom', 'HetHom_Multi',
+                      'total_nRR_Bi','total_nRA_Bi','total_nAA_Bi','Missing_Bi', 'Set_Missing_Bi', 'IndDepthSum_Bi', 'IndMeanDepth_Bi',
+                      'total_nRR_Multi', 'total_nRA_Multi' 'total_nAA_Multi', 'Missing_Multi', 'Set_Missing_Multi', 'IndDepthSum_Multi', 'IndMeanDepth_Multi',
+                      'Singleton_Bi','Private_Doubleton_Bi','Doubleton_Bi','Singleton_Multi', 'Private_Doubleton_Multi', 'Doubleton_Multi',
+                      'HetHom_Bi', 'HetHom_Multi',
                       'Ti_Bi','Tv_Bi','TiTvRatio_Bi', 'Ti_Multi', 'Tv_Multi', 'TiTvRatio_Multi', 
-                      'IndDepthSum','IndMeanDepth','IndDepthSum_Multi', 'IndMeanDepth_Multi',
-                      '1P_MI','2P_MI','MI_pairs','Non_Missing_Indels',]
+                      '1P_MI','2P_MI','MI_pairs','Non_Missing_Indels']
 
         if isWES:
            fieldnames.extend(['Ti_WES','Tv_WES','TiTvRatio_WES'])
@@ -455,28 +477,32 @@ def write_indiv_summary(prefix, isWES):
             good_gt_multiallelic = val2.tallySA['passing_obs_homo1'] + val2.tallySA['passing_obs_het'] + val2.tallySA['passing_obs_homo2']
             all_gt_multiallelic = good_gt_multiallelic + val2.tallySA[-9]
             mean_depth_multiallelic = val2.dp_total / all_gt_multiallelic if all_gt_multiallelic else 0
+            
             row = {'SampleID': indiv, 'SEX': val.details_dict.SEX,
-                            'total_nRR': val.tallySA[(0,0)],'total_nRA': good_het_gt_biallelic,'total_nAA': val.tallySA[(1,1)],
-                            'Passing_Multi': ",".join([str(val2.tallySA['passing_obs_homo1']),str(val2.tallySA['passing_obs_het']),str(val2.tallySA['passing_obs_homo2'])]),
-                            'Failing_Multi': ",".join([str(val2.tallySA['failing_obs_homo1']),str(val2.tallySA['failing_obs_het']),str(val2.tallySA['failing_obs_homo2'])]),
-                            'Missing': val.tallySA[(None,None)],'Set_Missing': val.tallySA[-9],
+                            'total_nRR_Bi': val.tallySA[(0,0)],'total_nRA_Bi': good_het_gt_biallelic,'total_nAA_Bi': val.tallySA[(1,1)],
+                            'Missing_Bi': val.tallySA[(None,None)],'Set_Missing_Bi': val.tallySA[-9],
+                            'IndDepthSum_Bi': val.dp_total,
+                            'IndMeanDepth_Bi':"{0:.5f}".format(mean_depth_biallelic),
+                            #'Passing_Multi': ",".join([str(val2.tallySA['passing_obs_homo1']),str(val2.tallySA['passing_obs_het']),str(val2.tallySA['passing_obs_homo2'])]),
+                            'total_nRR_Multi': ",".join([str(val2.tallySA['passing_obs_homo1'])]),
+                            'total_nRA_Multi': ",".join([str(val2.tallySA['passing_obs_het'])]),
+                            'total_nAA_Multi': ",".join([str(val2.tallySA['passing_obs_homo2'])]),
                             'Missing_Multi': val2.tallySA[(None,None)], 'Set_Missing_Multi' : val2.tallySA[-9],
-                            'Singleton': val.tallySA['singleton'],
-                            'Private_Doubleton': val.tallySA['p_dblton'],
-                            'Doubleton': val.tallySA['doubleton'],
+                            'IndDepthSum_Multi' : val2.dp_total,
+                            'IndMeanDepth_Multi' : "{0:.5f}".format(mean_depth_multiallelic),
+                            'Singleton_Bi': val.tallySA['singleton'],
+                            'Private_Doubleton_Bi': val.tallySA['p_dblton'],
+                            'Doubleton_Bi': val.tallySA['doubleton'],
                             'Singleton_Multi': val2.tallySA['singleton'],
                             'Private_Doubleton_Multi': val2.tallySA['p_dblton'],
                             'Doubleton_Multi': val2.tallySA['doubleton'],
-                            'HetHom':"{0:.5f}".format(het_hom_biallelic),
+                            'HetHom_Bi':"{0:.5f}".format(het_hom_biallelic),
                             'HetHom_Multi' : "{0:.5f}".format(het_hom_multiallelic),
                             'Ti_Bi': val.tallySA['ti'], 'Tv_Bi': val.tallySA['tv'], 'TiTvRatio_Bi':"{0:.5f}".format(ti_tv),
                             'Ti_Multi':val2.tallySA['ti'], 'Tv_Multi': val2.tallySA['tv'], 'TiTvRatio_Multi': "{0:.5f}".format(ti_tv_multi),
-                            'IndDepthSum': val.dp_total,
-                            'IndMeanDepth':"{0:.5f}".format(mean_depth_biallelic),
-                            'IndDepthSum_Multi' : val2.dp_total,
-                            'IndMeanDepth_Multi' : "{0:.5f}".format(mean_depth_multiallelic),
+                            #'IndMeanDepth_Multi' : "{0:.5f}".format(mean_depth_multiallelic),
                             '1P_MI': val.tallySA['vp1'],'2P_MI':val.tallySA['vp2'],'MI_pairs':val.tallySA['mend_pair'],
-                            'Non_Missing_Indels': val.tallySA['non_missing_indel']
+                            'Non_Missing_Indels_Bi': val.tallySA['non_missing_indel']
                             }
 
             # WES - TiTv
@@ -488,70 +514,83 @@ def write_indiv_summary(prefix, isWES):
             writer.writerow(row)
     return
 
-def write_indiv_summary_chrx(prefix, isWES, is_multiallelic):
+def write_indiv_summary_chrx(prefix, isWES):
     """
     """
     outfile = '{}.tsv'.format(prefix)
     with open(outfile, 'w') as csvfile:
         
-        if is_multiallelic:
-            fieldnames = ['SampleID','SEX', 'Pass', 'Fail','Missing', 'Set_Missing',
-                      'HetHom','IndDepthSum','IndMeanDepth']
-        else:
-            fieldnames = ['SampleID','SEX', 'Pass', 'Fail','Missing', 'Set_Missing',
-                      'Singleton','Private_Doubleton','Doubleton','HetHom',
-                      'Ti','Tv','TiTvRatio','IndDepthSum', 'IndMeanDepth',]
 
+
+
+        fieldnames = ['SampleID','SEX', 'total_nRR_Bi', 'total_nRA_Bi','total_nAA_Bi', 'Missing_Bi', 'Set_Missing_Bi', 'IndDepthSum_Bi', 'IndMeanDepth_Bi',
+                      'total_nRR_Multi', 'total_nRA_Multi','total_nAA_Multi', 'Missing_Multi', 'Set_Missing_Multi', 'IndDepthSum_Multi', 'IndMeanDepth_Multi',
+                      'Singleton_Bi','Private_Doubleton_Bi','Doubleton_Bi','Singleton_Multi', 'Private_Doubleton_Multi', 'Doubleton_Multi',
+                      'HetHom_Bi', 'HetHom_Multi',
+                      'Ti_Bi','Tv_Bi','TiTvRatio_Bi', 
+                      'Ti_Multi', 'Tv_Multi', 'TiTvRatio_Multi', 
+                      '1P_MI','2P_MI','MI_pairs','Non_Missing_Indels_Bi']
+    
         if isWES: # Deprecated
            fieldnames.extend(['Ti_WES','Tv_WES','TiTvRatio_WES'])
 
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames , delimiter='\t', lineterminator='\n')
         writer.writeheader()
         abc_order = OrderedDict(sorted(mi.sa.sa_collection.items()))
-        for indiv, val in abc_order.items():
-            if not is_multiallelic:
-                ti_tv = val.tallySA['ti'] / val.tallySA['tv'] if val.tallySA['tv'] else 0
+        abc_order_multiallelic = OrderedDict(sorted(mi.sa.sa_collection_multiallelic.items()))
+        for (indiv, val), (indiv2,val2) in zip(abc_order.items(),abc_order_multiallelic.items()):
+            #if not is_multiallelic:
+            #    ti_tv = val.tallySA['ti'] / val.tallySA['tv'] if val.tallySA['tv'] else 0
+            ti_tv = val.tallySA['ti'] / val.tallySA['tv'] if val.tallySA['tv'] else 0
+            ti_tv_multi = val2.tallySA['ti'] / val2.tallySA['tv'] if val2.tallySA['tv'] else 0
 
-            het_hom = (val.tallySA['passing_obs_het'] /val.tallySA['passing_obs_homo2'] if val.tallySA['passing_obs_homo2'] else 0) if val.details_dict.SEX == "1" else 0
+            #het_hom = (val.tallySA['passing_obs_het'] /val.tallySA['passing_obs_homo2'] if val.tallySA['passing_obs_homo2'] else 0) if val.details_dict.SEX == "1" else 0
+            het_hom_biallelic = val.tallySA[(0,1)] / val.tallySA[(1,1)] if val.tallySA[(1,1)] else 0
+            het_hom_multiallelic = val2.tallySA['passing_obs_het']/val2.tallySA['passing_obs_homo2'] if val2.tallySA['passing_obs_homo2'] else 0
+            # mean_depth
+            good_het_gt_biallelic = val.tallySA[(0,1)] + val.tallySA[(1,0)]
+            good_gt_biallelic = val.tallySA[(0,0)] + good_het_gt_biallelic + val.tallySA[(1,1)]
+            #good_gt_biallelic = val.tallySA[(0,0)] + val.tallySA['passing_obs_homo2'] + val.tallySA['passing_obs_het']
+            all_gt_biallelic = good_gt_biallelic + val.tallySA[-9]
+            mean_depth_biallelic = val.dp_total / all_gt_biallelic if all_gt_biallelic else 0
 
             # mean_depth
-            good_gt = val.tallySA[(0,0)] + val.tallySA['passing_obs_homo2'] + val.tallySA['passing_obs_het']
-            all_gt = good_gt + val.tallySA[-9]
-            mean_depth = val.dp_total / all_gt if all_gt else 0
-            #Multiallelic ChrX Rows
-            if is_multiallelic:
-                row = {'SampleID': indiv, 'SEX': val.details_dict.SEX,
-                    'Pass': ",".join([str(val.tallySA['passing_obs_homo1']),str(val.tallySA['passing_obs_het']) if val.details_dict.SEX == "1" else "0",str(val.tallySA['passing_obs_homo2'])]),
-                    'Fail':  ",".join([str(val.tallySA['failing_obs_homo1']),str(val.tallySA['failing_obs_het']),str(val.tallySA['failing_obs_homo2'])]),
-                    'Missing': val.tallySA[(None,None)],
-                    'Set_Missing': val.tallySA[-9],
-                    'HetHom':"{0:.5f}".format(het_hom),
-                    'IndDepthSum': val.dp_total,
-                    'IndMeanDepth':"{0:.5f}".format(mean_depth),
-                    }
-            else: #Biallelic Chrx Rows
-                row = {'SampleID': indiv, 'SEX': val.details_dict.SEX,
-                    'Pass': ",".join([str(val.tallySA['passing_obs_homo1']),str(val.tallySA['passing_obs_het']) if val.details_dict.SEX == "1" else "0",str(val.tallySA['passing_obs_homo2'])]),
-                    'Fail':  ",".join([str(val.tallySA['failing_obs_homo1']),str(val.tallySA['failing_obs_het']),str(val.tallySA['failing_obs_homo2'])]),
-                    'Missing': val.tallySA[(None,None)],
-                    'Set_Missing': val.tallySA[-9],
-                    'Singleton': val.tallySA['singleton'],
-                    'Private_Doubleton': val.tallySA['p_dblton'],
-                    'Doubleton': val.tallySA['doubleton'],
-                    'HetHom':"{0:.5f}".format(het_hom),
-                    'Ti': val.tallySA['ti'], 
-                    'Tv': val.tallySA['tv'], 
-                    'TiTvRatio':"{0:.5f}".format(ti_tv),
-                    'IndDepthSum': val.dp_total,
-                    'IndMeanDepth':"{0:.5f}".format(mean_depth),
-                    }
+            good_gt_multiallelic = val2.tallySA['passing_obs_homo1'] + val2.tallySA['passing_obs_het'] + val2.tallySA['passing_obs_homo2']
+            all_gt_multiallelic = good_gt_multiallelic + val2.tallySA[-9]
+            mean_depth_multiallelic = val2.dp_total / all_gt_multiallelic if all_gt_multiallelic else 0
 
-            # WES - TiTv
-            if isWES:
-               ti_tv_wes = val.tallySA['ti_wes'] if val.tallySA['tv_wes'] == 0 else val.tallySA['ti_wes'] / val.tallySA['tv_wes']
-               row['Ti_WES'] = val.tallySA['ti_wes']
-               row['Tv_WES'] = val.tallySA['tv_wes']
-               row['TiTvRatio_WES'] = "{0:.5f}".format(ti_tv_wes)
+            row = {'SampleID': indiv, 'SEX': val.details_dict.SEX,
+                    'total_nRR_Bi': ",".join([str(val.tallySA['passing_obs_homo1'])]),
+                    'total_nRA_Bi': ",".join([str(val.tallySA['passing_obs_het']) if val.details_dict.SEX == "1" else "0"]),
+                    'total_nAA_Bi': ",".join([str(val.tallySA['passing_obs_homo2'])]),
+                    'Missing_Bi': val.tallySA[(None,None)],
+                    'Set_Missing_Bi': val.tallySA[-9],
+                    'IndDepthSum_Bi': val.dp_total,
+                    'IndMeanDepth_Bi':"{0:.5f}".format(mean_depth_biallelic),
+                    'total_nRR_Multi': ",".join([str(val2.tallySA['passing_obs_homo1'])]),
+                    'total_nRA_Multi': ",".join([str(val2.tallySA['passing_obs_het']) if val.details_dict.SEX == "1" else "0"]),
+                    'total_nAA_Multi': ",".join([str(val2.tallySA['passing_obs_homo2'])]),
+                    'Missing_Multi': val2.tallySA[(None,None)], 'Set_Missing_Multi' : val2.tallySA[-9],
+                    'IndDepthSum_Multi': val2.dp_total,
+                    'IndMeanDepth_Multi':"{0:.5f}".format(mean_depth_multiallelic),
+                    'Singleton_Bi': val.tallySA['singleton'],
+                    'Private_Doubleton_Bi': val.tallySA['p_dblton'],
+                    'Doubleton_Bi': val.tallySA['doubleton'],
+                    'Singleton_Multi': val2.tallySA['singleton'],
+                    'Private_Doubleton_Multi': val2.tallySA['p_dblton'],
+                    'Doubleton_Multi': val2.tallySA['doubleton'],
+                    'HetHom_Bi':"{0:.5f}".format(het_hom_biallelic),
+                    'HetHom_Multi':"{0:.5f}".format(het_hom_multiallelic),
+                    'Ti_Bi': val.tallySA['ti'], 
+                    'Tv_Bi': val.tallySA['tv'], 
+                    'TiTvRatio_Bi':"{0:.5f}".format(ti_tv),
+                    'Ti_Multi': val2.tallySA['ti'], 
+                    'Tv_Multi': val2.tallySA['tv'], 
+                    'TiTvRatio_Multi':"{0:.5f}".format(ti_tv),
+                    '1P_MI': val.tallySA['vp1'],'2P_MI':val.tallySA['vp2'],'MI_pairs':val.tallySA['mend_pair'],
+                    'Non_Missing_Indels_Bi': val.tallySA['non_missing_indel']
+                    }
+            
             writer.writerow(row)
     return
 
@@ -887,9 +926,7 @@ def main():
 
 ## Run analysis on Multiallelic chromosome ##
     for rec in vcf_in.fetch(rChr, rStart, rEnd):
-        print(rec.pos)
         if len(rec.alts) >1 and not args.is_chrx:
-            print(f'running multiallelic')
             if rStart is None or (rStart <= rec.pos <= rEnd): #
                 vtype = determine_vtype(rec)
                 samplesDict = gather_intersect_fam_vcf_samples(rec.samples, samplesDict)
@@ -918,7 +955,6 @@ def main():
         #else:
         if (rStart is None or (rStart <= rec.pos <= rEnd)) and not args.is_chrx: #If the current position is within --region OR if no region given:
         # Variant Type: SNV, insertion, deletion
-            print(f'biallelic')
             vtype = "SNV"
             if len(rec.ref) > 1:
                 vtype = "Deletion"
@@ -996,21 +1032,9 @@ def main():
                 vcf_out.write(rec)
 
                 variant_ct_biallelic += 1
-                print(f'added')
 
     ## Run analysis on ChrX (Biallelic/Multiallelic) chromosome ##
-        if variant_ct_biallelic > 0 or variant_ct_multiallelic > 0:
-            print(variant_ct_biallelic)
-            print(variant_ct_multiallelic)
-            print("biallelic rate:{0:.2f}".format(variant_ct_biallelic/(end - start_p)))
-            print("multiallelic rate:{0:.2f}".format(variant_ct_multiallelic/(end - start_p)))
-            # create index
-            time.sleep(1)
-            check_output(["tabix", "-f", vcf_out_filename])
-
-
-        if args.is_chrx:
-            print(f'running chrx')
+        elif args.is_chrx:
             samplesDict_male,samplesDict_female = extract_subsets_chrx(args.fam)
 
             for k,v in samplesDict_male.items():
@@ -1053,7 +1077,6 @@ def main():
                         raise "VTYPE error" 
                 else: #Initiate biallelic variable for write_indiv_summary_chrx and find vtype
                     variant_ct_biallelic += 1
-                    print(f'biallelic position chrX')
                     chrx_is_multiallelic = False
                     vtype = "SNV"
                     if len(rec.ref) > 1:
@@ -1086,42 +1109,26 @@ def main():
 
             if args.no_output_vcf == False:
                 vcf_out.close()
-
-
-
-        write_indiv_summary(prefix_indiv, isWES)
+        
+    write_indiv_summary(prefix_indiv, isWES) if not args.is_chrx else write_indiv_summary_chrx(prefix_indiv, isWES)
     end = time.time()
     print("total_time:{0:.2f}".format(end - start))
     print("process_time:{0:.2f}".format(end - start_p))
-    print("total_processed:{}".format(variant_ct_biallelic + variant_ct_multiallelic))
-    if variant_ct_biallelic > 0 or variant_ct_multiallelic > 0:
-        print(variant_ct_biallelic)
-        print(variant_ct_multiallelic)
-        print("biallelic rate:{0:.2f}".format(variant_ct_biallelic/(end - start_p)))
-        print("multiallelic rate:{0:.2f}".format(variant_ct_multiallelic/(end - start_p)))
-        # create index
-        time.sleep(1)
-        check_output(["tabix", "-f", vcf_out_filename])
+    print(f"total biallelic processed:{variant_ct_biallelic}")
+    print(f"total multiallelic processed:{variant_ct_multiallelic}")
+    print("biallelic rate:{0:.2f}".format(variant_ct_biallelic/(end - start_p)))
+    print("multiallelic rate:{0:.2f}".format(variant_ct_multiallelic/(end - start_p)))
+    # create index
+    time.sleep(1)
+    check_output(["tabix", "-f", vcf_out_filename])
+    #if variant_ct_biallelic > 0 or variant_ct_multiallelic > 0:
 
-        """
-        end = time.time()
-        print("total_time:{0:.2f}".format(end - start))
-        print("process_time:{0:.2f}".format(end - start_p))
-        print("total_processed:{}".format(variant_ct))
-        if variant_ct_biallelic > 0 or variant_ct_multiallelic > 0:
-            print(variant_ct_biallelic)
-            print(variant_ct_multiallelic)
-            print("biallelic rate:{0:.2f}".format(variant_ct_biallelic/(end - start_p)))
-            print("multiallelic rate:{0:.2f}".format(variant_ct_multiallelic/(end - start_p)))
-        
-        write_indiv_summary_chrx(prefix_indiv, isWES, chrx_is_multiallelic)
 
-        if args.no_output_vcf == False:
-        # create index
-            time.sleep(1)
-            check_output(["tabix", "-f", vcf_out_filename])
 
-        """
+
+
+
+
 def calculate_subgroup_scores_multiallelic(subset, subg, subg_cntl,allele_count_dict,zhet_sample_counts):
     """ calculate_subgroup_scores - generates nClean, Zhet, and pHWE for subgroups
                                     added to TAGs within the INFO field. pHWE-subgroup has
@@ -1359,21 +1366,14 @@ def find_s_d_chrx(clean_d, samples, allele_count_dict):
     1/1 Male GT's treated as being 'Heterozygous' since even though males are hemizygous at Chrx, they carry an alt allele
     """
     abc_order = OrderedDict(sorted(mi.sa.sa_collection.items()))      #Used to check SEX of sample 
-    print(clean_d)
-    print(allele_count_dict)
-    
-    #allele_count_dict = OrderedDict({key:{n:0 for n in range(0,N+1)} for key in clean_d})
-    #Singletons:
-    #Het female
-    #Homozygoys ref/alt male
+    total_obs = sum(
+    sum(counts.values())
+    for gender in clean_d.values()
+    for counts in gender.values()
+    )
 
-    #Doubletons:
-    #1 het female, 1 homo ref/alt male
-    #2 het females, no male
-    #0 females, 2 homoref/alt male
-
-    #PD:
-    #Females only (2 ref or 2 alt)
+    if total_obs < 5:
+        return
 
     alleles_with_singletons = []
     alleles_with_private_doubletons = []
@@ -1582,9 +1582,6 @@ def find_singleton_chrx_3(samples, clean_d, alleles_with_singletons):
     return k_list
 
 
-
-
-
 def find_singleton_chrx_2(samples, clean_d, alleles_with_singletons):
     k_list = list()
     abc_order = OrderedDict(sorted(mi.sa.sa_collection.items()))
@@ -1660,12 +1657,11 @@ def find_private_doubleton_chrx_2(samples, alleles_with_private_doubletons):
                     try:
                         if (sm['DP'] >= cfg.MINDP
                             and sm['GQ'] >= cfg.MINGQ):
+                            print(k, sm['GT'])
                             k_list.append(k)
                     except TypeError:  # TypeError: unorderable types: NoneType() < int() (missing DP)
                         continue
     return k_list
-
-
 
 def find_private_doubleton_chrx(samples, allele, gender):
     abc_order = OrderedDict(sorted(mi.sa.sa_collection.items()))
