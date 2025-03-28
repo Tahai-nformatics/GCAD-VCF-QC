@@ -172,7 +172,6 @@ def calcVA(snp_samples, rec_details, subset):
     #    fail_cnt = [obs_hom1 + failed[0], obs_hets + failed[1], obs_hom2 + failed[2]]
 
     #clean_obs = [obs_hom1, obs_hets, obs_hom2]
-
     # AB Het
     if het_dp > 0:
         ab_het = "{0:.4f}".format(het_ad / het_dp)
@@ -211,7 +210,6 @@ def calcVA_multiallelic(snp_samples,rec_details,subset,vtype):
                         pass_snv = 1
 
     #Skipping VLAG 11 (WES)
-
     [passing_d,failing_d,missing,gt_failed,clean_passing_d,depth_sum,abhet_AD_list,abhet_DP_list, allele_count_dict]= count_gt_multiallelic(snp_samples,rec_details,vtype)
     obs_hom1 = sum(list(passing_d['obs_homo1'].values()))
     obs_het = sum(list(passing_d['obs_het'].values()))
@@ -338,9 +336,8 @@ def calcVA_chrx(male_snp_samples,female_snp_samples,rec_details,male_subset,fema
     maf_female = copy.deepcopy(clean_d['female'])
     maf = []
     maf_reference_alleles = sum(list(clean_d['male']['obs_homo1'].values())) + 2*sum(list(clean_d['female']['obs_homo1'].values()))        
-    temp = 2 * (sum(list(clean_d['female']['obs_homo1'].values())) + sum(list(clean_d['female']['obs_homo2'].values())) + sum(list(clean_d['female']['obs_het'].values()))) + sum(list(clean_d['male']['obs_homo1'].values())) + sum(list(clean_d['male']['obs_homo2'].values()))
+    AN = 2 * (sum(list(clean_d['female']['obs_homo1'].values())) + sum(list(clean_d['female']['obs_homo2'].values())) + sum(list(clean_d['female']['obs_het'].values()))) + sum(list(clean_d['male']['obs_homo1'].values())) + sum(list(clean_d['male']['obs_homo2'].values()))
     sum_clean = 0
-
 #Add All Non-Male_Het GT's to sum_Clean
     for key1,key2 in zip(clean_d['male'].keys(),clean_d['female'].keys()): #obs_hom1, obs_het, obs_hom2
         if key1 != 'obs_het':
@@ -360,7 +357,7 @@ def calcVA_chrx(male_snp_samples,female_snp_samples,rec_details,male_subset,fema
     homo_maf_dict = {}
     ac_ref_het = 0
 
-    if temp >0:
+    if AN >0:
         for allele in allele_list:
             het_maf_dict[allele] = 0
             homo_maf_dict[allele] = 0
@@ -377,9 +374,9 @@ def calcVA_chrx(male_snp_samples,female_snp_samples,rec_details,male_subset,fema
                 else:
                     continue
             if allele == 0:
-                maf.append(float(("{0:.6f}".format((het_maf_dict[allele] + (  maf_reference_alleles)) / temp))))
+                maf.append(float(("{0:.6f}".format((het_maf_dict[allele] + (  maf_reference_alleles)) / AN))))
             elif allele!=0:
-                maf.append(("{0:.6f}".format((het_maf_dict[allele] + ( homo_maf_dict[allele])) / temp)))
+                maf.append(("{0:.6f}".format((het_maf_dict[allele] + ( homo_maf_dict[allele])) / AN)))
     else:
         for allele in allele_list:
             maf.append(format(0.0, '.6f'))
@@ -433,7 +430,6 @@ def calcVA_chrx(male_snp_samples,female_snp_samples,rec_details,male_subset,fema
     # qbinom((1-t),N,e) #gives number c such that P(bin>c)<t. We reject a position if #male hets > c (strictly greater than)
     if sum(passing_d_male['obs_het'].values()) > c:
         vf.append(7)
-
     #Add the Male_Hets which "passed" to failing_d_male['obs_het'] and add that to gt_failed
     if len(vf) < 1:
         vf.append(0)
@@ -446,7 +442,7 @@ def calcVA_chrx(male_snp_samples,female_snp_samples,rec_details,male_subset,fema
         except:
             pass
     
-    return [vf,passing_d_male,passing_d_female,failing_d_male,failing_d_female,missing,gt_failed,clean_d,sum_clean,maf, depth_sum,ab_het,allele_count_dict]
+    return [vf,passing_d_male,passing_d_female,failing_d_male,failing_d_female,missing,gt_failed,clean_d,sum_clean,maf, depth_sum,ab_het, AN, allele_count_dict]
 
 def check_inside_exon(pos, contig):
    """
