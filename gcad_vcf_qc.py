@@ -7,6 +7,7 @@ from pysam import VariantFile
 import csv
 import os
 import copy
+import cProfile
 from subprocess import check_output
 
 from collections import namedtuple, OrderedDict, Counter
@@ -871,7 +872,8 @@ def main():
     variant_ct_biallelic = 0
     variant_ct_multiallelic = 0
     start_p = time.time()
-        
+
+
 
 ## Run analysis on Multiallelic chromosome ##
     for rec in vcf_in.fetch(rChr, rStart, rEnd):
@@ -879,7 +881,6 @@ def main():
             if rStart is None or (rStart <= rec.pos <= rEnd): #
                 vtype = determine_vtype(rec)
                 samplesDict = gather_intersect_fam_vcf_samples(rec.samples, samplesDict)
-
                 for subset, sm_list in samplesDict.items():
                     rec_details = {'filter': rec.filter, 'ref': rec.ref, 'alt': rec.alts,
                                                 'chr': rec.contig, 'pos': rec.pos}
@@ -980,7 +981,7 @@ def main():
             chrx_is_multiallelic = len(rec.alts) > 1
             chrx_is_biallelic = len(rec.alts) < 2
             samplesDict_male,samplesDict_female = extract_subsets_chrx(args.fam)
-
+            
             for k,v in samplesDict_male.items():
                 samplesDict_male[k] = {'set': set(vcf_in.header.samples) and v,'dict':dict() }
                 set_size += len(samplesDict_male[k]['set'])
@@ -996,7 +997,6 @@ def main():
                     samplesDict_female = gather_intersect_fam_vcf_samples(rec.samples, samplesDict_female)
                     
                     for (subset_male, sm_list_male), (subset_female, sm_list_female) in zip(samplesDict_male.items(), samplesDict_female.items()):
-                        
                         rec_details= {'filter': rec.filter, 'ref': rec.ref, 'alt': rec.alts,
                             'chr': rec.contig, 'pos': rec.pos}
                         #Calculate stats
@@ -1850,6 +1850,6 @@ def check_mendelian_errors_chrx(prefix, rec):
 
 if __name__ == "__main__":
     main()
-    # cProfile.run('main()', None, 'tottime')
+    #cProfile.run('main()', None, 'tottime')
 
 

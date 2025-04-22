@@ -431,7 +431,7 @@ def count_gt_chrx(male_samples,female_samples,rec_details, chrx_is_multiallelic,
                 abhet_AD_list[allele] += sm['AD'][allele]
             abhet_DP_list[sm['GT'][0]] += ( sm['AD'][sm['GT'][0]] + sm['AD'][sm['GT'][1]] )
             abhet_DP_list[sm['GT'][1]] += ( sm['AD'][sm['GT'][1]] + sm['AD'][sm['GT'][0]] )
-
+    
     clean_d['male'],clean_d['female'] = copy.deepcopy(passing_d_male), copy.deepcopy(passing_d_female)
     return [passing_d_male,failing_d_male,passing_d_female,failing_d_female,missing,gt_failed,clean_d,depth_sum,abhet_AD_list,abhet_DP_list,allele_count_dict]
 
@@ -484,7 +484,7 @@ def tallyTiTv(k,sm, ref, alt, wes_flag):
 
 
 def tallyTiTv_multiallelic(k,sm, ref, alt, gt,vtype,snv_dict):
-    mi.sa.tallyTiTv_multiallelic(k, ref, alt, gt,vtype,snv_dict)
+    mi.sa.tallyTiTv_multiallelic(k, ref, alt, gt,vtype)
 
 def is_good_gt(sm):
     """
