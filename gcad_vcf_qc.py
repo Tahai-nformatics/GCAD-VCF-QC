@@ -873,8 +873,6 @@ def main():
     variant_ct_multiallelic = 0
     start_p = time.time()
 
-
-
 ## Run analysis on Multiallelic chromosome ##
     for rec in vcf_in.fetch(rChr, rStart, rEnd):
         if len(rec.alts) >1 and not args.is_chrx:
@@ -890,7 +888,7 @@ def main():
                     mend_pairs, mend_errors = check_mendelian_errors_multiallelic(prefix_mi, rec)
                     #Companion file
                     write_subset_stats_multiallelic(prefix_companions, rec, subset, maf ,vf,passing_d,failing_d,missing,gt_failed,clean_passing_d,sum_clean,depth_sum,ab_het,mend_pairs,mend_errors,vtype)
-                find_s_d_multiallelic(clean_passing_d,rec.samples,allele_count_dict)
+                find_s_d_multiallelic(clean_passing_d,sm_list['dict'],allele_count_dict)
                 if args.no_output_vcf == False:
                     #Append to INFO field headers and write to VCF file
                     vcf_output_create_multiallelic(rec, subset, clean_passing_d, maf, vf, ab_het, vtype, vcf_out, sum_clean, allele_count_dict)
@@ -945,16 +943,6 @@ def main():
                 #Append Allele Frequency to INFO field
                 rec.info['AF'] = float((passing[1] + (2 * passing[2]))/ (2 * sum(passing)))  if sum(passing) > 0 else 0
 
-                # Append subset VFLAGS to INFO field
-                #rec.info[ "VFLAGS_" + subset ] = vf
-
-                # Append subset ABHet to INFO field
-                #rec.info[ "ABHet_" + subset ] = str(abhet) if abhet != 'NA' else None
-
-                # Append VariantType
-                #rec.info[ "VariantType" ] = vtype
-
-
                 # count number of vflag(11) for VariantInTargetRatio
                 if have_target:
                     #vflag_11_ct += (11 not in vf)
@@ -1001,6 +989,7 @@ def main():
                             'chr': rec.contig, 'pos': rec.pos}
                         #Calculate stats
                         [vf,passing_d_male,passing_d_female,failing_d_male,failing_d_female,missing,gt_failed,clean_d,sum_clean,maf,depth_sum, ab_het, AN, allele_count_dict] = calcVA_chrx(sm_list_male['dict'],sm_list_female['dict'],rec_details,subset_male,subset_female, chrx_is_multiallelic,vtype)
+
                         #MI 
                         mend_pairs, mend_errors = check_mendelian_errors_chrx(prefix_mi, rec)
                         #Companion file
