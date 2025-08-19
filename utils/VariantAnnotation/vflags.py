@@ -33,9 +33,12 @@ def calcVA(snp_samples, rec_details, subset):
     vf = []
     pass_cnt = [0,0,0]
     fail_cnt = [0,0,0]
-    snp_record_filter = rec_details['filter']
+    snp_record_filter = rec_details['qual']
 
     # VFLAG 1
+    if int(snp_record_filter) < 100:
+        vf.append(1)
+    """
     if 'PASS' in snp_record_filter:
         pass_snv = 1
     else:
@@ -53,7 +56,7 @@ def calcVA(snp_samples, rec_details, subset):
                         pass_snv = 0
                     else:
                         pass_snv = 1
-
+    """
     # VFLAG 11
     in_region = None
     if targets and subset in targets[rec_details['chr']]:
@@ -188,9 +191,11 @@ def calcVA_multiallelic(snp_samples,rec_details,subset,vtype):
     vf = []
     ab_het = 0
     total = 0
-    snp_record_filter = rec_details['filter']
-
-# VFLAG 1
+    snp_record_filter = rec_details['qual']
+    # VFLAG 1
+    if int(snp_record_filter) < 100:
+        vf.append(1)
+    """
     if 'PASS' in snp_record_filter:
         pass_snv = 1
     else:
@@ -208,7 +213,7 @@ def calcVA_multiallelic(snp_samples,rec_details,subset,vtype):
                         pass_snv = 0
                     else:
                         pass_snv = 1
-
+    """
     #Skipping VLAG 11 (WES)
     [passing_d,failing_d,missing,gt_failed,clean_passing_d,depth_sum,abhet_AD_list,abhet_DP_list, allele_count_dict]= count_gt_multiallelic(snp_samples,rec_details,vtype)
     obs_hom1 = sum(list(passing_d['obs_homo1'].values()))
@@ -302,9 +307,11 @@ def calcVA_chrx(male_snp_samples,female_snp_samples,rec_details,male_subset,fema
     vf = []
     ab_het = 0
     total = 0
-    snp_record_filter = rec_details['filter']
-
-# VFLAG 1
+    snp_record_filter = rec_details['qual']
+    # VFLAG 1
+    if int(snp_record_filter) < 100:
+        vf.append(1)
+    """
     if 'PASS' in snp_record_filter:
         pass_snv = 1
     else:
@@ -322,6 +329,7 @@ def calcVA_chrx(male_snp_samples,female_snp_samples,rec_details,male_subset,fema
                         pass_snv = 0
                     else:
                         pass_snv = 1
+    """
     #Skipping VLAG 11 (WES)
     [passing_d_male,failing_d_male,passing_d_female,failing_d_female,missing,gt_failed,clean_d,depth_sum,abhet_AD_list,abhet_DP_list,allele_count_dict]= count_gt_chrx(male_snp_samples,female_snp_samples,rec_details, chrx_is_multiallelic, vtype)
     ab_het = [i for i in range(len(abhet_AD_list))]

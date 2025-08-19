@@ -142,7 +142,6 @@ def write_subset_stats_multiallelic(prefix, rec, subset,maf, vf, passing_d,faili
     rec_details = {'filter': rec.filter, 'ref': rec.ref, 'alt': rec.alts,
                  'chr': rec.contig, 'pos': rec.pos}
     total_genotypes = sum_clean + gt_failed
-
     #MeanDepth    
     mean_depth = depth_sum / total_genotypes if total_genotypes else 0
     #CallRate
@@ -201,7 +200,6 @@ def write_subset_stats(prefix, subset, rec, vf, abhet, passing, failing, missing
     """
     outfile = '{}.{}.tsv'.format(prefix, subset)
     newfile = not os.path.exists(outfile)
-
     with open(outfile, 'a') as csvfile:
         fieldnames = ['CHR','POS',
                       'PassRR','PassRA','PassAA',
@@ -295,7 +293,6 @@ def write_subset_stats_chrx(prefix, rec, subset,vf,passing_d_male,passing_d_fema
     outfile = '{}.{}.tsv'.format(prefix, subset)
     newfile = not os.path.exists(outfile)
     callrate = 1 - (missing + gt_failed) / (missing + gt_failed + sum_clean)
-
     #MeanDepth
     total_genotypes = sum_clean + gt_failed
     mean_depth = depth_sum / total_genotypes if total_genotypes else 0
@@ -881,7 +878,7 @@ def main():
                 samplesDict = gather_intersect_fam_vcf_samples(rec.samples, samplesDict)
                 for subset, sm_list in samplesDict.items():
                     rec_details = {'filter': rec.filter, 'ref': rec.ref, 'alt': rec.alts,
-                                                'chr': rec.contig, 'pos': rec.pos}
+                                                'chr': rec.contig, 'pos': rec.pos, 'qual': rec.qual}
                 #Calculate stats
                     [vf,maf,passing_d,failing_d,missing,gt_failed,clean_passing_d,sum_clean,depth_sum,ab_het, allele_count_dict] = calcVA_multiallelic(sm_list['dict'],rec_details,subset, vtype)
                     #MI
@@ -894,7 +891,7 @@ def main():
                     vcf_output_create_multiallelic(rec, subset, clean_passing_d, maf, vf, ab_het, vtype, vcf_out, sum_clean, allele_count_dict)
                 variant_ct_multiallelic += 1
         #else:
-        if (rStart is None or (rStart <= rec.pos <= rEnd)) and not args.is_chrx and len(rec.alts) < 2:
+        elif (rStart is None or (rStart <= rec.pos <= rEnd)) and not args.is_chrx and len(rec.alts) < 2:
         # Variant Type: SNV, insertion, deletion
             vtype = "SNV"
             if len(rec.ref) > 1:
@@ -910,7 +907,7 @@ def main():
                 [vf, abhet, passing, failing, missing, gt_failed, depth_sum] = calcVA(
                     sm_list['dict'],
                     {'filter': rec.filter, 'ref': rec.ref, 'alt': rec.alts,
-                    'chr': rec.contig, 'pos': rec.pos
+                    'chr': rec.contig, 'pos': rec.pos, 'qual': rec.qual
                     },
                     subset,
                 )
@@ -931,7 +928,6 @@ def main():
                                 mend_pairs, mend_errors, vtype,
                                 isWES, have_target
                                 )
-    
                 #vcf_output_create_biallelic(rec, subset, clean_obs, vf, abhet, vtype, vcf_out)
                 
                 #Append Allele Number to INFO field
@@ -963,9 +959,9 @@ def main():
                 vcf_out.write(rec)
 
                 variant_ct_biallelic += 1
-
     ## Run analysis on ChrX (Biallelic/Multiallelic) chromosome ##
-        elif (rStart is None or (rStart <= rec.pos <= rEnd) and args.is_chrx):
+        #elif (rStart is None or (rStart <= rec.pos <= rEnd) and args.is_chrx):
+        elif args.is_chrx and (rStart is None or (rStart <= rec.pos <= rEnd)):
             chrx_is_multiallelic = len(rec.alts) > 1
             chrx_is_biallelic = len(rec.alts) < 2
             samplesDict_male,samplesDict_female = extract_subsets_chrx(args.fam)
@@ -986,7 +982,7 @@ def main():
                     
                     for (subset_male, sm_list_male), (subset_female, sm_list_female) in zip(samplesDict_male.items(), samplesDict_female.items()):
                         rec_details= {'filter': rec.filter, 'ref': rec.ref, 'alt': rec.alts,
-                            'chr': rec.contig, 'pos': rec.pos}
+                                      'chr': rec.contig, 'pos': rec.pos, 'qual': rec.qual}
                         #Calculate stats
                         [vf,passing_d_male,passing_d_female,failing_d_male,failing_d_female,missing,gt_failed,clean_d,sum_clean,maf,depth_sum, ab_het, AN, allele_count_dict] = calcVA_chrx(sm_list_male['dict'],sm_list_female['dict'],rec_details,subset_male,subset_female, chrx_is_multiallelic,vtype)
 
