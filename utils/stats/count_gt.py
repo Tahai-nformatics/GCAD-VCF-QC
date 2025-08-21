@@ -309,43 +309,20 @@ def count_gt_chrx(male_samples,female_samples,rec_details, chrx_is_multiallelic,
         except:
             raise
         depth_sum += sm['DP']
-        tallyPassingSample_multiallelic(k,sm) if chrx_is_multiallelic else tallyPassingSample(k,sm) 
+        tallyPassingSample_chrx(k,sm, chrx_is_multiallelic)
         #Passing Sample Increase GT Counts if GT found in sample
         if sm['GT'][0] == sm['GT'][1]: #Homozygous Sample (REF or ALT)
             if sm['GT'] == (0,0):
                 passing_d_male['obs_homo1'][((0, 0), (0, 0))] +=1
                 allele_count_dict['obs_het'][0] += 1
-                if chrx_is_multiallelic:
-                    mi.sa.sa_collection_multiallelic[k].tallySA['passing_obs_homo1'] += 1
-                else:
-                    mi.sa.sa_collection[k].tallySA['passing_obs_homo1'] += 1
             else: #Homozygous ALT
                 tallyTiTv_multiallelic(k, sm, ref, alt,sm['GT'],vtype,snv_dict) if chrx_is_multiallelic else tallyTiTv(k, sm, ref, alt, None)
                 passing_d_male['obs_homo2'][(sm['GT'], (sm['GT'][1],sm['GT'][0]))] +=1
                 allele_count_dict['obs_het'][sm['GT'][0]] += 1
-                if chrx_is_multiallelic:
-                    mi.sa.sa_collection_multiallelic[k].tallySA['passing_obs_homo2'] += 1
-                else:
-                    mi.sa.sa_collection[k].tallySA['passing_obs_homo2'] += 1
         else: #Heterozygous sample
             sm['GT'] == (None,None)
             passing_d_male['obs_het'][(sm['GT'], (sm['GT'][1],sm['GT'][0]))] +=1
             failing_d_male['obs_het'][(sm['GT'], (sm['GT'][1],sm['GT'][0]))] +=1
-            #tallyFailedSample_multiallelic(k, sm) if chrx_is_multiallelic else tallyFailedSample(k, sm)
-            if chrx_is_multiallelic:
-                mi.sa.sa_collection_multiallelic[k].tallySA['passing_obs_het'] += 1
-            else:
-                mi.sa.sa_collection[k].tallySA['passing_obs_het'] += 1
-            if 0 in sm['GT']: # Treat Alternate alleles in a Het sample differently for Zhet calculations
-                if chrx_is_multiallelic:
-                    mi.sa.sa_collection_multiallelic[k].tallySA['failing_obs_het'] += 1
-                else:
-                    mi.sa.sa_collection[k].tallySA['failing_obs_het'] += 1
-            else:
-                if chrx_is_multiallelic:
-                    mi.sa.sa_collection_multiallelic[k].tallySA['failing_obs_homo2'] += 1
-                else:
-                    mi.sa.sa_collection[k].tallySA['failing_obs_homo2'] += 1
             gt_failed += 1
     for k,sm in female_samples.items():
         subgroup = mi.sa.sa_collection[k].get_subgroup()
@@ -385,41 +362,20 @@ def count_gt_chrx(male_samples,female_samples,rec_details, chrx_is_multiallelic,
         except:
             raise
         depth_sum += sm['DP']
-        tallyPassingSample_multiallelic(k,sm) if chrx_is_multiallelic else  tallyPassingSample(k,sm)
-        
+        tallyPassingSample_chrx(k,sm, chrx_is_multiallelic) 
         if sm['GT'][0] == sm['GT'][1]: #Homozygous Sample (REF or ALT)
             if sm['GT'] == (0,0):
                 passing_d_female['obs_homo1'][((0, 0), (0, 0))] +=1
-                #if chrx_is_multiallelic:
-                #    mi.sa.sa_collection_multiallelic[k].tallySA['passing_obs_homo1'] += 1
-                #else:
-                #    mi.sa.sa_collection[k].tallySA['passing_obs_homo1'] += 1
                 allele_count_dict['obs_homo1'][0] += 2
             else: #Homozygous ALT
                 tallyTiTv_multiallelic(k, sm, ref, alt,sm['GT'],vtype,snv_dict) if chrx_is_multiallelic else tallyTiTv(k, sm, ref, alt, None)
                 passing_d_female['obs_homo2'][(sm['GT'], (sm['GT'][1],sm['GT'][0]))] +=1
                 allele_count_dict['obs_homo2'][sm['GT'][0]] += 2
-                
-                #if chrx_is_multiallelic:
-                #    mi.sa.sa_collection_multiallelic[k].tallySA['passing_obs_homo2'] += 1
-                #else:
-                #    mi.sa.sa_collection[k].tallySA['passing_obs_homo2'] += 1
         else: #Heterozygous sample
             tallyTiTv_multiallelic(k, sm, ref, alt,sm['GT'],vtype, snv_dict) if chrx_is_multiallelic else tallyTiTv(k, sm, ref, alt, None)
             passing_d_female['obs_het'][(sm['GT'], (sm['GT'][1],sm['GT'][0]))] +=1
             allele_count_dict['obs_het'][sm['GT'][0]] += 1
             allele_count_dict['obs_het'][sm['GT'][1]] += 1
-            if 0 in sm['GT']: # Treat Alternate alleles in a Het sample differently for Zhet calculations
-                #if chrx_is_multiallelic:
-                #    mi.sa.sa_collection_multiallelic[k].tallySA['passing_obs_het'] += 1
-                #else:
-                    mi.sa.sa_collection[k].tallySA['passing_obs_het'] += 1
-            #else:
-                #if chrx_is_multiallelic:
-                #    mi.sa.sa_collection_multiallelic[k].tallySA['passing_obs_homo2'] += 1
-                #else:
-                #    mi.sa.sa_collection[k].tallySA['passing_obs_homo2'] += 1
-       
         if any(sm['GT'] in het_gt for het_gt in passing_d_female['obs_het']):
             for allele in sm['GT']:   # For ABHET Calculations:
                 abhet_AD_list[allele] += sm['AD'][allele]
@@ -456,6 +412,10 @@ def tallyPassingSample(k,sm):
 
 def tallyPassingSample_multiallelic(k,sm):
     mi.sa.tally_multiallelic(k, sm, -1)
+
+
+def tallyPassingSample_chrx(k,sm, chrx_is_multiallelic):
+    mi.sa.tally_chrx(k, sm, -1, chrx_is_multiallelic)
 
 def tallyFailedSample_multiallelic(k, sm):
     mi.sa.sa_collection_multiallelic[k].tallySA[ -9 ] += 1

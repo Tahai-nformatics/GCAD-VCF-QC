@@ -9,8 +9,6 @@ from utils.stats.count_gt import count_gt, count_gt_multiallelic, count_gt_chrx
 # global dictionary containing target intervals used in WES QC
 targets = dict()
 
-# global dictionart containing exons
-exons = dict()
 
 
 
@@ -38,73 +36,8 @@ def calcVA(snp_samples, rec_details, subset):
     # VFLAG 1
     if int(snp_record_filter) < 100:
         vf.append(1)
-    """
-    if 'PASS' in snp_record_filter:
-        pass_snv = 1
-    else:
-        for k in snp_record_filter.keys():
-            if k.startswith('VQSRTranche'): # VQSRTrancheSNP99.80to99.90; VQSRTrancheINDEL
-                low = None
-                if k.startswith('VQSRTrancheSNP'):
-                    low, high = k.replace('VQSRTrancheSNP','').split('to')
-                elif k.startswith('VQSRTrancheINDEL'):
-                    low, high = k.replace('VQSRTrancheINDEL','').split('to')
 
-                if low is not None:
-                    if float(low) >= cfg.minTranche:
-                        vf.append(1)
-                        pass_snv = 0
-                    else:
-                        pass_snv = 1
-    """
-    # VFLAG 11
-    in_region = None
-    if targets and subset in targets[rec_details['chr']]:
-        variant_bin = reg2bin(rec_details['pos'])
-
-        # simple case: bin is not in targets dict
-        if variant_bin not in targets[rec_details['chr']][subset]:
-            vf.append(11)
-        else:
-            in_region = False
-            is_insertion = len(rec_details['alt'][0]) - 1
-            is_deletion = len(rec_details['ref']) - 1
-
-            for interval in targets[rec_details['chr']][subset][variant_bin]:
-
-                if is_deletion:
-
-                    lower_bound = rec_details['pos']
-                    upper_bound = rec_details['pos'] + is_deletion
-
-                    # signal if the indel is contained within the target
-                    if interval[0] <= lower_bound <= interval[1]:
-                        in_region = True
-                        break
-
-                    if interval[0] <= upper_bound <= interval[1]:
-                        in_region = True
-                        break
-
-                    # also signal if the target is within the interval
-                    if lower_bound <= interval[0] <= upper_bound:
-                        in_region = True
-                        break
-
-                    if lower_bound <= interval[1] <= upper_bound:
-                        in_region = True
-                        break
-
-                else:
-                    if interval[0] <= rec_details['pos'] <= interval[1]:
-                        in_region = True
-                        break
-
-            if not in_region:
-                vf.append(11)
-
-    in_exon = check_inside_exon(rec_details['pos'], rec_details['chr'])
-
+    in_exon = False
     # sample-level qc below. Results are required for remaining vflags
     [obs_hom1, obs_hets, obs_hom2, missing, gt_failed, depth_sum, failed, het_ad, het_dp ] = count_gt(snp_samples, rec_details, in_exon)
     total = obs_hom1 + obs_hets + obs_hom2 + missing + gt_failed
@@ -129,52 +62,13 @@ def calcVA(snp_samples, rec_details, subset):
         if (depth_sum / total_genotypes) > cfg.max_dp:
             vf.append(5)
 
-    # VFLAG 6
-    #maf = 0
-    #if  non_missing > 0:
-        #maf = (obs_hets + (2 * obs_hom2)) / (2*(non_missing))
-        ##if (maf > 0.5):
-        ##        maf = 1 - maf
-
-    #if cfg.isFam:
-        #z_het, hetz_maf = calc_ExcessHet(obs_hom1, obs_hets, obs_hom2)
-        #if z_het == '.': z_het = 0
-
-        #if   ((maf <  0.2  or maf  > 0.8) and (abs(float(z_het)) > cfg.hetz_lim1)):
-            #vf.append(6)
-        #elif ((maf >= 0.2 and maf <= 0.8) and (abs(float(z_het)) > cfg.hetz_lim2)):
-            #vf.append(6)
-
-    #else:
-        #z_het = '.'
-
-        #if non_missing > 0:
-            #if (maf > 0.5):
-                #maf = 1 - maf
-
-            ## Calc Hardy-Weinberg equilibrium if MAF>0.01
-            #if maf > hwe_maf:
-                #z_het = calc_pHWE(obs_hom1, obs_hets, obs_hom2)
-
-        #if((z_het >= 1) or (z_het < hwe_pval)):
-            #vf.append(6)
-
-    # VFLAG 7
-    #if len(rec_details['alt']) > 1:
-    #    vf.append(7)
-
-    # VFLAG 0
-    # Presence of VFLAGs counts as failing GTs
     if len(vf) < 1:
         vf.append(0)
 
         # Set passing
     pass_cnt = [obs_hom1, obs_hets, obs_hom2]
     fail_cnt = failed
-    #else:
-    #    fail_cnt = [obs_hom1 + failed[0], obs_hets + failed[1], obs_hom2 + failed[2]]
-
-    #clean_obs = [obs_hom1, obs_hets, obs_hom2]
+    
     # AB Het
     if het_dp > 0:
         ab_het = "{0:.4f}".format(het_ad / het_dp)
@@ -192,28 +86,11 @@ def calcVA_multiallelic(snp_samples,rec_details,subset,vtype):
     ab_het = 0
     total = 0
     snp_record_filter = rec_details['qual']
-    # VFLAG 1
+
+    #VFLAG 1
     if int(snp_record_filter) < 100:
         vf.append(1)
-    """
-    if 'PASS' in snp_record_filter:
-        pass_snv = 1
-    else:
-        for k in snp_record_filter.keys():
-            if k.startswith('VQSRTranche'): # VQSRTrancheSNP99.80to99.90; VQSRTrancheINDEL
-                low = None
-                if k.startswith('VQSRTrancheSNP'):
-                    low, high = k.replace('VQSRTrancheSNP','').split('to')
-                elif k.startswith('VQSRTrancheINDEL'):
-                    low, high = k.replace('VQSRTrancheINDEL','').split('to')
-
-                if low is not None:
-                    if float(low) >= cfg.minTranche:
-                        vf.append(1)
-                        pass_snv = 0
-                    else:
-                        pass_snv = 1
-    """
+    
     #Skipping VLAG 11 (WES)
     [passing_d,failing_d,missing,gt_failed,clean_passing_d,depth_sum,abhet_AD_list,abhet_DP_list, allele_count_dict]= count_gt_multiallelic(snp_samples,rec_details,vtype)
     obs_hom1 = sum(list(passing_d['obs_homo1'].values()))
@@ -311,26 +188,7 @@ def calcVA_chrx(male_snp_samples,female_snp_samples,rec_details,male_subset,fema
     # VFLAG 1
     if int(snp_record_filter) < 100:
         vf.append(1)
-    """
-    if 'PASS' in snp_record_filter:
-        pass_snv = 1
-    else:
-        for k in snp_record_filter.keys():
-            if k.startswith('VQSRTranche'): # VQSRTrancheSNP99.80to99.90; VQSRTrancheINDEL
-                low = None
-                if k.startswith('VQSRTrancheSNP'):
-                    low, high = k.replace('VQSRTrancheSNP','').split('to')
-                elif k.startswith('VQSRTrancheINDEL'):
-                    low, high = k.replace('VQSRTrancheINDEL','').split('to')
-
-                if low is not None:
-                    if float(low) >= cfg.minTranche:
-                        vf.append(1)
-                        pass_snv = 0
-                    else:
-                        pass_snv = 1
-    """
-    #Skipping VLAG 11 (WES)
+    
     [passing_d_male,failing_d_male,passing_d_female,failing_d_female,missing,gt_failed,clean_d,depth_sum,abhet_AD_list,abhet_DP_list,allele_count_dict]= count_gt_chrx(male_snp_samples,female_snp_samples,rec_details, chrx_is_multiallelic, vtype)
     ab_het = [i for i in range(len(abhet_AD_list))]
     obs_hom1_male = sum(list(passing_d_male['obs_homo1'].values()))

@@ -192,6 +192,37 @@ class SampleAnnotation:
             else: #alt het
                 self.sa_collection_multiallelic[indiv_id].tallySA['passing_obs_homo2'] += 1
 
+
+    def tally_chrx(self, indiv_id, vsm, failed, chrx_is_multiallelic):
+        if failed == 1:
+            self.sa_collection_multiallelic[indiv_id].tallySA[ -9 ] += 1
+            if vsm['DP'] != None:
+                 self.add_dp(indiv_id, vsm['DP'])
+            return
+        elif failed == -1:
+            #if b_or_m == "biallelic":
+            # good (passing) genotypes
+            self.save_good_kid_multiallelic(indiv_id)
+            self.add_dp_multiallelic(indiv_id, vsm['DP'])
+
+        sa_col = self.sa_collection_multiallelic if chrx_is_multiallelic else self.sa_collection
+        sex = sa_col[indiv_id].details_dict.SEX
+
+        gt = vsm['GT']
+
+        if gt[0] == gt[1]:  # Homozygous
+            key = 'passing_obs_homo1' if gt == (0, 0) else 'passing_obs_homo2'
+            sa_col[indiv_id].tallySA[key] += 1
+        else:  # Heterozygous
+            if 0 in gt:  # Het with reference allele
+                key = 'failing_obs_het' if sex == "0" else 'passing_obs_het'
+                if sex == "0":
+                    sa_col[indiv_id].tallySA['passing_obs_het']
+            else:
+                key = 'failing_obs_homo2' if sex == "0" else 'passing_obs_homo2'
+            sa_col[indiv_id].tallySA[key] += 1
+
+
     def tallyIndel(self, ref, alt): #non_missing_indel
         if ref==alt: return
         if len(alt) > 1 or len(ref) > 1:
@@ -223,6 +254,7 @@ class SampleAnnotation:
                    self.sa_collection[indiv_id].tallySA['tv_wes'] += 1
         
     def tallyTiTv_multiallelic(self, indiv_id, ref, alt, genotype, vtype):
+
         if vtype == 'MULTI_INDEL':
             return
 
@@ -258,7 +290,6 @@ class SampleAnnotation:
             else:
                 # For INDELs or other cases where lengths do not match
                 continue
-
 
 
     def add_dp(self,indiv_id, dp):

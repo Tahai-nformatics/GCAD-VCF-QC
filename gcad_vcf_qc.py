@@ -957,10 +957,8 @@ def main():
 
             if args.no_output_vcf == False:
                 vcf_out.write(rec)
-
                 variant_ct_biallelic += 1
     ## Run analysis on ChrX (Biallelic/Multiallelic) chromosome ##
-        #elif (rStart is None or (rStart <= rec.pos <= rEnd) and args.is_chrx):
         elif args.is_chrx and (rStart is None or (rStart <= rec.pos <= rEnd)):
             chrx_is_multiallelic = len(rec.alts) > 1
             chrx_is_biallelic = len(rec.alts) < 2
