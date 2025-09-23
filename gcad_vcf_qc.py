@@ -870,6 +870,7 @@ def main():
     variant_ct_multiallelic = 0
     start_p = time.time()
 
+
 ## Run analysis on Multiallelic chromosome ##
     for rec in vcf_in.fetch(rChr, rStart, rEnd):
         if len(rec.alts) >1 and not args.is_chrx:
@@ -997,7 +998,8 @@ def main():
                     #Append to INFO field headers and write to VCF file
                     if args.no_output_vcf == False:
                         vcf_output_create_chrX(rec, maf, AN, allele_count_dict, vcf_out, chrx_is_multiallelic)
-    vcf_out.close()
+    if args.no_output_vcf == False:
+        vcf_out.close()
     write_indiv_summary(prefix_indiv, isWES) if not args.is_chrx else write_indiv_summary_chrx(prefix_indiv, isWES)
     if args.no_output_vcf == False:
     # create index
