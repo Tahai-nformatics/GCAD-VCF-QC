@@ -316,7 +316,7 @@ def count_gt_chrx(male_samples,female_samples,rec_details, chrx_is_multiallelic,
                 passing_d_male['obs_homo1'][((0, 0), (0, 0))] +=1
                 allele_count_dict['obs_het'][0] += 1
             else: #Homozygous ALT
-                tallyTiTv_multiallelic(k, sm, ref, alt,sm['GT'],vtype,snv_dict) if chrx_is_multiallelic else tallyTiTv(k, sm, ref, alt, None)
+                tallyTiTv_multiallelic(k, sm, ref, alt,sm['GT'],vtype,snv_dict) if chrx_is_multiallelic else tallyTiTv(k, sm, ref, alt[0], None)
                 passing_d_male['obs_homo2'][(sm['GT'], (sm['GT'][1],sm['GT'][0]))] +=1
                 allele_count_dict['obs_het'][sm['GT'][0]] += 1
         else: #Heterozygous sample
@@ -368,11 +368,11 @@ def count_gt_chrx(male_samples,female_samples,rec_details, chrx_is_multiallelic,
                 passing_d_female['obs_homo1'][((0, 0), (0, 0))] +=1
                 allele_count_dict['obs_homo1'][0] += 2
             else: #Homozygous ALT
-                tallyTiTv_multiallelic(k, sm, ref, alt,sm['GT'],vtype,snv_dict) if chrx_is_multiallelic else tallyTiTv(k, sm, ref, alt, None)
+                tallyTiTv_multiallelic(k, sm, ref, alt,sm['GT'],vtype,snv_dict) if chrx_is_multiallelic else tallyTiTv(k, sm, ref, alt[0], None)
                 passing_d_female['obs_homo2'][(sm['GT'], (sm['GT'][1],sm['GT'][0]))] +=1
                 allele_count_dict['obs_homo2'][sm['GT'][0]] += 2
         else: #Heterozygous sample
-            tallyTiTv_multiallelic(k, sm, ref, alt,sm['GT'],vtype, snv_dict) if chrx_is_multiallelic else tallyTiTv(k, sm, ref, alt, None)
+            tallyTiTv_multiallelic(k, sm, ref, alt,sm['GT'],vtype, snv_dict) if chrx_is_multiallelic else tallyTiTv(k, sm, ref, alt[0], None)
             passing_d_female['obs_het'][(sm['GT'], (sm['GT'][1],sm['GT'][0]))] +=1
             allele_count_dict['obs_het'][sm['GT'][0]] += 1
             allele_count_dict['obs_het'][sm['GT'][1]] += 1

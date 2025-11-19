@@ -233,7 +233,7 @@ class SampleAnnotation:
         if ref==alt: return
         if len(alt) > 1 or len(ref) > 1:
             return
-
+        
         if ref in {'A', 'G'}:
             if alt in {'A', 'G'}:
                 self.sa_collection[indiv_id].tallySA['ti'] += 1
