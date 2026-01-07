@@ -302,7 +302,7 @@ def count_gt_chrx(male_samples,female_samples,rec_details, chrx_is_multiallelic,
                         if sm['GT'] in key:
                             failing_d_male[classification][key] += 1
                             mi.sa.sa_collection[k].tallySA['failing_'+ classification] += 1
-            sm['GT'] == (None,None)
+            sm['GT'] = (None,None)
             tallyFailedSample(k, sm) if len(alt)  == 1 else tallyFailedSample_multiallelic(k, sm)
             gt_failed += 1
             continue
@@ -320,7 +320,7 @@ def count_gt_chrx(male_samples,female_samples,rec_details, chrx_is_multiallelic,
                 passing_d_male['obs_homo2'][(sm['GT'], (sm['GT'][1],sm['GT'][0]))] +=1
                 allele_count_dict['obs_het'][sm['GT'][0]] += 1
         else: #Heterozygous sample
-            sm['GT'] == (None,None)
+            sm['GT'] = (None,None)
             passing_d_male['obs_het'][(sm['GT'], (sm['GT'][1],sm['GT'][0]))] +=1
             failing_d_male['obs_het'][(sm['GT'], (sm['GT'][1],sm['GT'][0]))] +=1
             gt_failed += 1
@@ -355,8 +355,9 @@ def count_gt_chrx(male_samples,female_samples,rec_details, chrx_is_multiallelic,
                         if sm['GT'] in key:
                             failing_d_female[classification][key] += 1
                             mi.sa.sa_collection[k].tallySA['failing_'+ classification] += 1
-            sm['GT'] == (None,None)
-            tallyFailedSample(k, sm)
+            sm['GT'] = (None,None)
+            tallyFailedSample_multiallelic(k, sm) if chrx_is_multiallelic else tallyFailedSample(k, sm)
+            #tallyFailedSample(k, sm)
             gt_failed += 1
             continue
         except:
